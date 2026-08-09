@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using FileLocker.Core.Crypto;
 using FileLocker.Core.Models;
 using FileLocker.Core.Security;
@@ -39,6 +40,13 @@ public class PasswordLockerService
     /// 的平行概念，資料形狀類似但作用範圍不同：這裡整個分頁共用一個計時器，不分網站。</summary>
     private byte[]? _appSessionMasterKey;
     private DateTime? _appSessionExpiresUtc;
+
+    /// <summary>TOTP 動態碼的揭露要求比密碼更嚴格——即使 app session／每網站 session 都還有效，
+    /// 距離「上一次真的完成一次完整驗證」超過 <see cref="TotpRevealFreshnessWindow"/> 就要重新
+    /// 驗證，不能沿用一般 1-60 分鐘的 session。見 <see cref="RecordAppSessionVerified"/> 的更新
+    /// 時機、<see cref="IsWithinTotpRevealFreshnessWindow"/> 的檢查邏輯。</summary>
+    private DateTime? _lastFullVerificationUtc;
+    private static readonly TimeSpan TotpRevealFreshnessWindow = TimeSpan.FromSeconds(30);
 
     public PasswordLockerService(PasswordLockerStore store, LockoutTracker lockoutTracker)
     {
@@ -368,10 +376,18 @@ public class PasswordLockerService
 
     // ---- CRUD ----
 
+    /// <summary>updateTotp 是「這次請求要不要動 TOTP 欄位」的旗標——不能單靠 totpSecret 是否為
+    /// null 判斷，因為「不提供 TOTP 相關參數（維持現狀不動）」跟「明確清空 TOTP」都會讓
+    /// totpSecret 是 null／空字串，兩者語意完全不同（前者是這次存檔跟 TOTP 無關，例如只是改
+    /// 密碼；後者是使用者在表單裡按了「移除 TOTP」）。updateTotp=false 時完全不碰既有紀錄的
+    /// EncryptedTotpSecretBase64；updateTotp=true 時，totpSecret 是空字串／null 代表清空，
+    /// 非空字串代表設定新密鑰（連同 algorithm／digits／period 一起，沒有給的話用標準預設值
+    /// SHA1/6/30）。</summary>
     public async Task<PasswordLockerEntryResult> AddOrUpdateCredentialAsync(
         string? id, CredentialCategory category, string title, IReadOnlyList<string> domains,
         string username, string password, string? notes, string? linkedVaultItemUuid, byte[] masterKey,
-        bool usernameHidden = false)
+        bool usernameHidden = false, bool updateTotp = false, string? totpSecret = null,
+        string? totpAlgorithm = null, int? totpDigits = null, int? totpPeriodSeconds = null)
     {
         return await Task.Run(() =>
         {
@@ -381,6 +397,15 @@ public class PasswordLockerService
             // 由呼叫端每次都帶完整的 username 決定，不用另外判斷「有沒有變更」。
             var plaintextUsername = usernameHidden ? "" : username;
             var encryptedUsername = usernameHidden ? EncryptField(masterKey, username) : null;
+            var encryptedTotp = updateTotp && !string.IsNullOrEmpty(totpSecret)
+                ? EncryptField(masterKey, JsonSerializer.Serialize(new
+                {
+                    secret = totpSecret,
+                    algorithm = totpAlgorithm ?? "SHA1",
+                    digits = totpDigits ?? 6,
+                    period = totpPeriodSeconds ?? 30
+                }))
+                : null;
             var now = DateTime.UtcNow;
             string resultId = id ?? "";
 
@@ -402,6 +427,10 @@ public class PasswordLockerService
                     existing.EncryptedPasswordBase64 = encryptedPassword;
                     existing.EncryptedNotesBase64 = encryptedNotes;
                     existing.LinkedVaultItemUuid = linkedVaultItemUuid;
+                    if (updateTotp)
+                    {
+                        existing.EncryptedTotpSecretBase64 = encryptedTotp;
+                    }
                     existing.UpdatedAtUtc = now;
                     resultId = existing.Id;
                     return;
@@ -418,6 +447,7 @@ public class PasswordLockerService
                     EncryptedPasswordBase64 = encryptedPassword,
                     EncryptedNotesBase64 = encryptedNotes,
                     LinkedVaultItemUuid = linkedVaultItemUuid,
+                    EncryptedTotpSecretBase64 = updateTotp ? encryptedTotp : null,
                     CreatedAtUtc = now,
                     UpdatedAtUtc = now
                 };
@@ -478,6 +508,62 @@ public class PasswordLockerService
             {
                 CryptographicOperations.ZeroMemory(plaintext);
             }
+        });
+    }
+
+    /// <summary>距離上一次真的完成一次完整驗證（見 RecordAppSessionVerified）是否還在 TOTP
+    /// 揭露要求的新鮮度視窗內——跟 app session／site session 的逾時分鐘數完全獨立，是刻意
+    /// 更嚴格的一道額外檢查，見類別開頭 TotpRevealFreshnessWindow 宣告處的說明。</summary>
+    public bool IsWithinTotpRevealFreshnessWindow(DateTime? now = null)
+        => _lastFullVerificationUtc is not null
+            && (now ?? DateTime.UtcNow) - _lastFullVerificationUtc.Value <= TotpRevealFreshnessWindow;
+
+    /// <summary>解密後的內容是 JSON（見 PasswordCredentialEntry.EncryptedTotpSecretBase64 上的
+    /// 說明），這裡負責解出 secret／algorithm／digits／period 四個欄位——不在這裡做新鮮度視窗
+    /// 檢查（那是授權層級的事，見 PasswordLockerProtocolHandlers.RevealTotpAsync 呼叫
+    /// IsWithinTotpRevealFreshnessWindow 的地方），這個方法只管「有沒有 TOTP、解不解得開」。</summary>
+    public async Task<PasswordLockerDecryptedTotpResult> GetDecryptedTotpAsync(string id, byte[] masterKey)
+    {
+        return await Task.Run(() =>
+        {
+            var entry = _store.Load().Entries.FirstOrDefault(e => e.Id == id);
+            if (entry?.EncryptedTotpSecretBase64 is null)
+            {
+                return new PasswordLockerDecryptedTotpResult(false, ErrorMessage: "這筆紀錄沒有設定 TOTP", ErrorCode: ErrorCodes.PasswordLockerTotpNotConfigured);
+            }
+
+            var plaintext = DecryptField(masterKey, entry.EncryptedTotpSecretBase64);
+            try
+            {
+                using var doc = JsonDocument.Parse(plaintext);
+                var root = doc.RootElement;
+                return new PasswordLockerDecryptedTotpResult(
+                    true,
+                    root.GetProperty("secret").GetString(),
+                    root.GetProperty("algorithm").GetString(),
+                    root.GetProperty("digits").GetInt32(),
+                    root.GetProperty("period").GetInt32());
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(plaintext);
+            }
+        });
+    }
+
+    /// <summary>瀏覽器擴充功能專用，跟 GetDecryptedPasswordForDomainAsync 同一個道理——多一道
+    /// 「這筆憑證真的關聯這個網域」的檢查，錯誤碼統一用 TotpNotConfigured／EntryNotFound
+    /// 而不是另開一個「網域不符」的錯誤碼，避免變成探測 oracle。</summary>
+    public async Task<PasswordLockerDecryptedTotpResult> GetDecryptedTotpForDomainAsync(string id, string domain, byte[] masterKey)
+    {
+        return await Task.Run(async () =>
+        {
+            var entry = _store.Load().Entries.FirstOrDefault(e => e.Id == id);
+            if (entry is null || !entry.AssociatedDomains.Any(d => string.Equals(d, domain, StringComparison.OrdinalIgnoreCase)))
+            {
+                return new PasswordLockerDecryptedTotpResult(false, ErrorMessage: "找不到這筆密碼紀錄", ErrorCode: ErrorCodes.PasswordLockerEntryNotFound);
+            }
+            return await GetDecryptedTotpAsync(id, masterKey);
         });
     }
 
@@ -667,7 +753,14 @@ public class PasswordLockerService
             CryptographicOperations.ZeroMemory(_appSessionMasterKey);
         }
         _appSessionMasterKey = masterKey;
-        _appSessionExpiresUtc = (now ?? DateTime.UtcNow).AddMinutes(_store.Load().SessionTimeoutMinutes);
+        var current = now ?? DateTime.UtcNow;
+        _appSessionExpiresUtc = current.AddMinutes(_store.Load().SessionTimeoutMinutes);
+        // TOTP 揭露要求的新鮮度視窗跟一般 app session 是分開的兩件事——這裡是「剛剛真的完成
+        // 一次完整驗證」的時間戳，不會因為 app session 續期（例如密碼欄位在逾時前又被存取一次）
+        // 而更新，只會在真正重新走一次密碼／Passkey／恢復金鑰驗證流程時更新。VerifyAsync／
+        // VerifyByRecoveryKeyAsync 成功時（見 PasswordLockerProtocolHandlers）都會呼叫到這裡，
+        // 是 App 分頁跟瀏覽器驗證視窗共用的同一個入口，兩邊都涵蓋到。
+        _lastFullVerificationUtc = current;
     }
 
     /// <summary>沒驗證過或已逾時回傳 null。回傳值是 <see cref="_appSessionMasterKey"/> 的參考，
@@ -1075,7 +1168,8 @@ public class PasswordLockerService
 
     private static PasswordCredentialMetadata ToMetadata(PasswordCredentialEntry entry)
         => new(entry.Id, entry.Category, entry.Title, entry.AssociatedDomains, entry.Username, entry.UsernameHidden,
-            entry.LinkedVaultItemUuid, entry.SourceDeleted, entry.CreatedAtUtc, entry.UpdatedAtUtc);
+            entry.LinkedVaultItemUuid, entry.SourceDeleted, entry.CreatedAtUtc, entry.UpdatedAtUtc,
+            entry.EncryptedTotpSecretBase64 is not null);
 
     /// <summary>跟 RecoveryKeyProtector.WrapContentKey 內部用的 nonce+tag+ciphertext 串接格式一致。</summary>
     private static string EncryptField(byte[] masterKey, string plaintext)

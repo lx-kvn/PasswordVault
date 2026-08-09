@@ -121,14 +121,17 @@ public sealed class PasswordLockerProtocolHandlers
 
     public async Task<PasswordLockerEntryResult> AddOrUpdateCredentialAsync(
         string? id, CredentialCategory category, string title, IReadOnlyList<string> domains,
-        string username, string password, string? notes, string? linkedVaultItemUuid, bool usernameHidden = false)
+        string username, string password, string? notes, string? linkedVaultItemUuid, bool usernameHidden = false,
+        bool updateTotp = false, string? totpSecret = null, string? totpAlgorithm = null,
+        int? totpDigits = null, int? totpPeriodSeconds = null)
     {
         var masterKey = _service.TryGetAppSessionMasterKey();
         if (masterKey is null)
         {
             return new PasswordLockerEntryResult(false, ErrorMessage: NotVerifiedMessage, ErrorCode: ErrorCodes.PasswordLockerNotVerified);
         }
-        return await _service.AddOrUpdateCredentialAsync(id, category, title, domains, username, password, notes, linkedVaultItemUuid, masterKey, usernameHidden);
+        return await _service.AddOrUpdateCredentialAsync(id, category, title, domains, username, password, notes, linkedVaultItemUuid, masterKey,
+            usernameHidden, updateTotp, totpSecret, totpAlgorithm, totpDigits, totpPeriodSeconds);
     }
 
     /// <summary>只有 UsernameHidden 的憑證才需要走這條路徑解密——沒隱藏的帳號前端清單本來就
@@ -155,6 +158,26 @@ public sealed class PasswordLockerProtocolHandlers
             return new PasswordLockerDecryptedNotesResult(false, ErrorMessage: NotVerifiedMessage, ErrorCode: ErrorCodes.PasswordLockerNotVerified);
         }
         return await _service.GetDecryptedNotesAsync(id, masterKey);
+    }
+
+    /// <summary>TOTP 揭露比密碼／備註更嚴格——除了 app session 主金鑰，還要求
+    /// IsWithinTotpRevealFreshnessWindow（見 PasswordLockerService 上的說明：距離上一次真的
+    /// 完成一次完整驗證要在 30 秒內），前端一律先強制跳一次驗證彈窗（不像密碼那樣沿用既有
+    /// session），這裡是後端獨立於前端行為的第二道防線。逾期回傳的錯誤碼刻意跟一般
+    /// PasswordLockerNotVerified 共用同一個，前端不需要新的錯誤處理分支，重新跳一次驗證彈窗
+    /// 就會自然滿足新鮮度視窗。</summary>
+    public async Task<PasswordLockerDecryptedTotpResult> RevealTotpAsync(string id)
+    {
+        if (!_service.IsWithinTotpRevealFreshnessWindow())
+        {
+            return new PasswordLockerDecryptedTotpResult(false, ErrorMessage: NotVerifiedMessage, ErrorCode: ErrorCodes.PasswordLockerNotVerified);
+        }
+        var masterKey = _service.TryGetAppSessionMasterKey();
+        if (masterKey is null)
+        {
+            return new PasswordLockerDecryptedTotpResult(false, ErrorMessage: NotVerifiedMessage, ErrorCode: ErrorCodes.PasswordLockerNotVerified);
+        }
+        return await _service.GetDecryptedTotpAsync(id, masterKey);
     }
 
     /// <summary>批次刪除：逐一呼叫，遇到第一筆失敗就回傳該筆的錯誤，不繼續處理剩下的——
@@ -262,5 +285,30 @@ public sealed class PasswordLockerProtocolHandlers
         // 憑證真的關聯這個網域」的檢查，見該方法上的稽核說明——這裡是唯一只驗證了「網站 session」
         // 就能拿到密碼明文的路徑，不能只靠上面兩個 session 計時器擋。
         return await _service.GetDecryptedPasswordForDomainAsync(id, domain, masterKey);
+    }
+
+    /// <summary>瀏覽器版的 RevealTotpAsync——三道檢查都要過：網站 session、app session 主金鑰、
+    /// 新鮮度視窗。PasswordLockerNativePipeServer 的 confused-deputy 重試機制（收到
+    /// NOT_VERIFIED 就跳驗證視窗、通過後重打一次）剛好對應「每次都要重新驗證」的要求——
+    /// 瀏覽器那端每次要看 TOTP 都會因為新鮮度視窗過期而重新觸發整個驗證流程，不需要額外
+    /// 設計一個「強制忽略 site session」的機制。</summary>
+    public async Task<PasswordLockerDecryptedTotpResult> RevealTotpForSiteAsync(string id, string domain)
+    {
+        if (!_service.IsSiteSessionValid(domain))
+        {
+            return new PasswordLockerDecryptedTotpResult(false, ErrorMessage: NotVerifiedMessage, ErrorCode: ErrorCodes.PasswordLockerNotVerified);
+        }
+        if (!_service.IsWithinTotpRevealFreshnessWindow())
+        {
+            return new PasswordLockerDecryptedTotpResult(false, ErrorMessage: NotVerifiedMessage, ErrorCode: ErrorCodes.PasswordLockerNotVerified);
+        }
+
+        var masterKey = _service.TryGetAppSessionMasterKey();
+        if (masterKey is null)
+        {
+            return new PasswordLockerDecryptedTotpResult(false, ErrorMessage: NotVerifiedMessage, ErrorCode: ErrorCodes.PasswordLockerNotVerified);
+        }
+
+        return await _service.GetDecryptedTotpForDomainAsync(id, domain, masterKey);
     }
 }

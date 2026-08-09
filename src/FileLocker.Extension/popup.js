@@ -20,6 +20,21 @@ const generateButton = document.getElementById('generateButton')
 const addSubmitButton = document.getElementById('addSubmitButton')
 const addCancelButton = document.getElementById('addCancelButton')
 
+const totpPreviewRow = document.getElementById('totpPreviewRow')
+const totpPreviewCode = document.getElementById('totpPreviewCode')
+const totpPreviewRing = document.getElementById('totpPreviewRing')
+const totpSetup = document.getElementById('totpSetup')
+const totpManualInput = document.getElementById('totpManualInput')
+const totpRemoveButton = document.getElementById('totpRemoveButton')
+
+// 「新增密碼」表單裡的 TOTP 草稿——popup 的新增表單沒有編輯既有紀錄的路徑（見檔案開頭
+// 說明，addView 只會新建一筆），所以這裡不需要 App.vue 表單那邊「既有紀錄本來就有設定」
+// 的中間狀態，null 就是「還沒設定」，非 null 就是「已經解析出一組要存的密鑰」。
+// computeTotpCode／parseTotpInput／totpRingOffset／TOTP_RING_CIRCUMFERENCE 都來自 shared.js
+// （同一個全域執行環境，不用另外 import）。
+let totpDraft = null
+let totpPreviewTimer = null
+
 // popup 開啟時非同步載入一次（見檔案最下面的立即執行初始化），載入完成前的極短暫窗口內
 // 用 zh-TW 當預設值——popup 每次都是使用者主動點開才會執行到會用到這個變數的程式碼，
 // chrome.storage.local 的讀取速度遠快於使用者點擊到看見畫面內容的時間，實務上不是風險。
@@ -78,8 +93,100 @@ async function loadCredentials() {
     domainsSpan.textContent = item.associatedDomains?.[0] || ''
     li.append(titleSpan, domainsSpan)
     li.addEventListener('click', () => useCredential(item))
+
+    if (item.hasTotp) {
+      const totpButton = document.createElement('button')
+      totpButton.type = 'button'
+      totpButton.className = 'totp-toggle'
+      totpButton.textContent = t('totpShowButton', currentLang)
+      // stopPropagation：這個按鈕跟外層 <li> 的 click（useCredential）是兩件互不相干的事，
+      // 沒有這行點按鈕會同時觸發「用這筆密碼填表單」，不是使用者要的行為。
+      totpButton.addEventListener('click', (e) => {
+        e.stopPropagation()
+        toggleListTotp(item, li, totpButton)
+      })
+      li.append(totpButton)
+    }
+
     listEl.append(li)
   }
+}
+
+// li -> { code, ring, secret, algorithm, digits, period, timer } 的展開狀態——用 Map
+// 而不是塞進 DOM dataset，方便存 timer handle 這種非字串值，也方便在收合/popup 關閉時
+// 逐一清掉所有計時器，不會有殘留的 setInterval 繼續空跑。
+const expandedTotps = new Map()
+
+async function toggleListTotp(item, li, button) {
+  const existing = expandedTotps.get(li)
+  if (existing) {
+    clearInterval(existing.timer)
+    existing.row.remove()
+    expandedTotps.delete(li)
+    button.textContent = t('totpShowButton', currentLang)
+    return
+  }
+
+  const ownDomain = item.associatedDomains?.[0]
+  if (!ownDomain) return
+
+  button.textContent = t('verifying', currentLang)
+  const result = await chrome.runtime.sendMessage({
+    type: 'revealPasswordLockerTotpForSite',
+    id: item.id,
+    domain: ownDomain
+  })
+  if (!result?.success) {
+    button.textContent = t('totpShowButton', currentLang)
+    setStatus(translateTotpRevealError(result))
+    return
+  }
+
+  const row = document.createElement('div')
+  row.className = 'totp-code-row'
+  const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  ring.setAttribute('viewBox', '0 0 36 36')
+  ring.setAttribute('class', 'totp-ring')
+  const track = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+  track.setAttribute('class', 'totp-ring__track')
+  track.setAttribute('cx', '18')
+  track.setAttribute('cy', '18')
+  track.setAttribute('r', '16')
+  const progress = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+  progress.setAttribute('class', 'totp-ring__progress')
+  progress.setAttribute('cx', '18')
+  progress.setAttribute('cy', '18')
+  progress.setAttribute('r', '16')
+  progress.style.strokeDasharray = String(TOTP_RING_CIRCUMFERENCE)
+  ring.append(track, progress)
+  const codeSpan = document.createElement('span')
+  codeSpan.className = 'totp-code'
+  row.append(ring, codeSpan)
+  li.append(row)
+
+  const state = { secret: result.secret, algorithm: result.algorithm, digits: result.digits, period: result.periodSeconds, row, ring: progress }
+  const tick = async () => {
+    try {
+      codeSpan.textContent = await computeTotpCode(state.secret, state.algorithm, state.digits, state.period)
+    } catch {
+      codeSpan.textContent = '------'
+    }
+    progress.style.strokeDashoffset = String(totpRingOffset(state.period))
+  }
+  await tick()
+  state.timer = setInterval(tick, 1000)
+  expandedTotps.set(li, state)
+  button.textContent = t('hide', currentLang)
+}
+
+function translateTotpRevealError(result) {
+  if (result?.errorCode === 'PASSWORD_LOCKER_TOTP_NOT_CONFIGURED') {
+    return t('totpNotConfigured', currentLang)
+  }
+  if (result?.errorCode === 'PASSWORD_LOCKER_NOT_VERIFIED') {
+    return t('verifyFailedOrCancelled', currentLang)
+  }
+  return t('totpRevealFailed', currentLang)
 }
 
 async function useCredential(item) {
@@ -211,6 +318,7 @@ function showAddView() {
   addUsernameInput.value = ''
   addPasswordInput.value = ''
   addTitleInput.value = ''
+  resetTotpDraft()
   addTitleInput.focus()
   prefillAddTitle()
 }
@@ -219,7 +327,66 @@ function showListView() {
   addView.classList.remove('visible')
   listView.style.display = ''
   setStatus('')
+  resetTotpDraft()
 }
+
+// ---- 新增表單裡的 TOTP 設定：只支援手動輸入，不支援 QR 上傳——見 popup.html
+// #totpSetup 附近的說明：Chrome 擴充功能的 popup 失焦就會自動關閉，跳出原生「開啟檔案」
+// 對話框的瞬間 popup 會被判定失焦、整個關掉，<input type="file"> 在這個容器裡點了沒反應，
+// 是 Chromium 平台本身的限制，要用 QR code 掃描設定請到 App 內的密碼庫頁面。 ----
+
+function resetTotpDraft() {
+  totpDraft = null
+  stopTotpPreview()
+  totpManualInput.value = ''
+  totpPreviewRow.hidden = true
+  totpSetup.hidden = false
+}
+
+function setTotpDraft(parsed) {
+  totpDraft = { secret: parsed.secret, algorithm: parsed.algorithm, digits: parsed.digits, period: parsed.period }
+  totpSetup.hidden = true
+  totpPreviewRow.hidden = false
+  startTotpPreview()
+}
+
+async function startTotpPreview() {
+  stopTotpPreview()
+  const tick = async () => {
+    if (!totpDraft) return
+    try {
+      totpPreviewCode.textContent = await computeTotpCode(totpDraft.secret, totpDraft.algorithm, totpDraft.digits, totpDraft.period)
+    } catch {
+      totpPreviewCode.textContent = '------'
+    }
+    totpPreviewRing.style.strokeDasharray = String(TOTP_RING_CIRCUMFERENCE)
+    totpPreviewRing.style.strokeDashoffset = String(totpRingOffset(totpDraft.period))
+  }
+  await tick()
+  totpPreviewTimer = setInterval(tick, 1000)
+}
+
+function stopTotpPreview() {
+  if (totpPreviewTimer) {
+    clearInterval(totpPreviewTimer)
+    totpPreviewTimer = null
+  }
+}
+
+// 'input'（不是 'change'）——change 只在失焦或按 Enter 才觸發，使用者貼上/打完密鑰後
+// 還要多一個動作才會看到預覽，體驗上像卡住。改成每次按鍵/貼上都檢查一次，看起來像是
+// 「打完了」（見 isTotpInputComplete 上的說明，避免打到一半就被強制跳走）就直接切換，
+// 不用使用者自己點到外面或按 Enter。
+function handleTotpManualInput() {
+  const value = totpManualInput.value
+  if (!isTotpInputComplete(value)) return
+  const parsed = parseTotpInput(value)
+  if (!parsed) return
+  setTotpDraft(parsed)
+}
+
+totpManualInput.addEventListener('input', handleTotpManualInput)
+totpRemoveButton.addEventListener('click', resetTotpDraft)
 
 // 只設 placeholder（灰字提示），不直接寫進 .value——標題留空，密碼庫清單本來就會在畫面上
 // 動態組出顯示名稱，而且會隨著之後「選擇密碼」關聯更多網站自動一起列出來（見 App.vue 的
@@ -271,7 +438,10 @@ async function submitAddCredential() {
     domains: [currentDomain],
     username,
     usernameHidden: false,
-    password
+    password,
+    // totpDraft 是 null 就完全不帶 totp 屬性——這是全新一筆紀錄，本來就沒有既有 TOTP 設定
+    // 可以「維持原樣」，跟 App.vue 表單那邊需要區分「不動」跟「移除」的情境不同。
+    ...(totpDraft ? { totp: totpDraft } : {})
   })
 
   addSubmitButton.disabled = false

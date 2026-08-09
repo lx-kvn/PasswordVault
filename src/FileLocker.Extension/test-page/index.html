@@ -137,6 +137,31 @@
     font-size: 13px;
     color: var(--muted);
   }
+  .totp-test-panel {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: #fafafa;
+  }
+  .totp-test-panel__title {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .totp-test-panel__row {
+    margin: 4px 0;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .totp-test-panel code {
+    background: #eee;
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--text);
+  }
 </style>
 </head>
 <body>
@@ -219,7 +244,24 @@
       這是純前端假頁面，僅供本機測試 FileLocker 密碼庫瀏覽器擴充功能用：所有表單都不會送出任何資料到任何伺服器，
       按下按鈕只會在本頁顯示假的成功訊息。分頁切換不會重新整理頁面（模擬 SPA 行為），
       可以用來測試偵測憑證提示條、MutationObserver、自動填入、以及「選擇密碼」流程。
+      登入成功會先跳到一個假的「輸入驗證碼」頁面（verify-2fa.html），再跳到 dashboard.html，
+      用來測試驗證碼欄位的自動填入。
     </p>
+
+    <!-- 固定測試用密鑰（不是每次重新整理都換一組）——把這組貼進 FileLocker 的「新增密碼」
+         表單的 TOTP 欄位（手動輸入那個框，或用任何 QR code 產生器把下面的 otpauth:// 連結
+         轉成圖片再上傳），之後回來這裡看下面即時算出的碼，跟 FileLocker 顯示的碼應該要
+         一模一樣、同時間輪替——這是這個測試頁唯一附帶的「正確性對照」用途，不是真的登入
+         驗證流程的一部分。 -->
+    <div class="totp-test-panel">
+      <p class="totp-test-panel__title">測試用 TOTP 密鑰（固定不變）</p>
+      <p class="totp-test-panel__row">密鑰：<code id="totp-test-secret">JBSWY3DPEHPK3PXP</code></p>
+      <p class="totp-test-panel__row">otpauth 連結：<code id="totp-test-uri" style="word-break: break-all;"></code></p>
+      <p class="totp-test-panel__row">
+        這台頁面自己算出的目前驗證碼：<code id="totp-test-code" style="font-size: 16px; font-weight: 700;">------</code>
+        （<span id="totp-test-countdown">--</span> 秒後換下一組）
+      </p>
+    </div>
   </div>
 
   <script>
@@ -255,12 +297,14 @@
 
     forms.login.addEventListener('submit', (e) => {
       e.preventDefault();
-      showStatus('（假頁面）登入成功，即將跳轉…', 'success');
+      showStatus('（假頁面）密碼正確，請輸入驗證碼…', 'success');
       const email = document.getElementById('login-email').value;
       // 真的換頁（不是 SPA 內切換），擴充功能靠網址列變化判斷「登入完成」，
-      // 只用 preventDefault + 原地換內容偵測不到，一定要跳到下一頁。
+      // 只用 preventDefault + 原地換內容偵測不到，一定要跳到下一頁。先跳到假的兩步驟驗證頁
+      // （verify-2fa.html），不直接跳 dashboard——用來測試驗證碼欄位的自動填入，登入表單
+      // 本身沒有驗證碼欄位，真實世界的兩步驟驗證流程通常也是密碼過了才另外顯示這一步。
       setTimeout(() => {
-        window.location.href = `dashboard.html?email=${encodeURIComponent(email)}`;
+        window.location.href = `verify-2fa.html?email=${encodeURIComponent(email)}`;
       }, 400);
     });
 
@@ -284,6 +328,65 @@
       e.preventDefault();
       showStatus('（假頁面）重設密碼信已「寄出」，沒有任何資料被送出。', 'success');
     });
+
+    // ---- 測試用 TOTP 面板：獨立算一次動態碼，拿來跟 FileLocker 顯示的碼互相對照 ----
+    // 跟 src/FileLocker.Extension/shared.js 的 computeTotpCode 是同一套 RFC 6238 演算法，
+    // 純粹為了這個測試頁自己驗證用而再抄一份，不依賴擴充功能任何檔案（這是網頁本身的
+    // 程式碼，跟擴充功能是兩個完全獨立的執行環境）。
+    const TOTP_TEST_SECRET = 'JBSWY3DPEHPK3PXP';
+    const TOTP_TEST_ISSUER = 'TestVault';
+
+    function base32DecodeForTest(base32) {
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+      const cleaned = base32.trim().replace(/[\s-]/g, '').replace(/=+$/, '').toUpperCase();
+      const bytes = [];
+      let buffer = 0;
+      let bitsInBuffer = 0;
+      for (const char of cleaned) {
+        const value = alphabet.indexOf(char);
+        if (value < 0) throw new Error(`不是合法的 Base32 字元：'${char}'`);
+        buffer = (buffer << 5) | value;
+        bitsInBuffer += 5;
+        if (bitsInBuffer >= 8) {
+          bitsInBuffer -= 8;
+          bytes.push((buffer >> bitsInBuffer) & 0xff);
+        }
+      }
+      return new Uint8Array(bytes);
+    }
+
+    async function computeTotpCodeForTest(base32Secret, periodSeconds = 30, nowMs = Date.now()) {
+      const keyBytes = base32DecodeForTest(base32Secret);
+      const counter = Math.floor(nowMs / 1000 / periodSeconds);
+      const counterBytes = new Uint8Array(8);
+      let remaining = BigInt(counter);
+      for (let i = 7; i >= 0; i--) {
+        counterBytes[i] = Number(remaining & 0xffn);
+        remaining >>= 8n;
+      }
+      const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: { name: 'SHA-1' } }, false, ['sign']);
+      const hashBuffer = await crypto.subtle.sign('HMAC', cryptoKey, counterBytes);
+      const hash = new Uint8Array(hashBuffer);
+      const offset = hash[hash.length - 1] & 0x0f;
+      const binaryCode = ((hash[offset] & 0x7f) << 24) | ((hash[offset + 1] & 0xff) << 16) | ((hash[offset + 2] & 0xff) << 8) | (hash[offset + 3] & 0xff);
+      return String(binaryCode % 1000000).padStart(6, '0');
+    }
+
+    const totpUriEl = document.getElementById('totp-test-uri');
+    const totpCodeEl = document.getElementById('totp-test-code');
+    const totpCountdownEl = document.getElementById('totp-test-countdown');
+    totpUriEl.textContent = `otpauth://totp/${TOTP_TEST_ISSUER}:test@example.com?secret=${TOTP_TEST_SECRET}&issuer=${TOTP_TEST_ISSUER}`;
+
+    async function refreshTotpTestPanel() {
+      try {
+        totpCodeEl.textContent = await computeTotpCodeForTest(TOTP_TEST_SECRET);
+      } catch {
+        totpCodeEl.textContent = '------';
+      }
+      totpCountdownEl.textContent = String(30 - (Math.floor(Date.now() / 1000) % 30));
+    }
+    refreshTotpTestPanel();
+    setInterval(refreshTotpTestPanel, 1000);
   </script>
 </body>
 </html>

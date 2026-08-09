@@ -77,6 +77,40 @@
     }
     .primary { background: #d4a017; color: #1f1f1f; font-weight: 600; }
     .secondary { background: #3a3a3a; color: #fff; }
+
+    /* TOTP：清單項目裡的小按鈕＋展開後的動態碼＋圓形倒數，跟 App.vue／content-script.js
+       共用同一套視覺語言（Google Authenticator 風格的圓環，見 shared.js 的 totpRingOffset）。 */
+    .totp-toggle {
+      flex-shrink: 0;
+      background: transparent;
+      border: none;
+      color: #d4a017;
+      cursor: pointer;
+      padding: 2px 4px;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+    .totp-toggle:hover { background: #33342c; }
+    li .totp-code-row { display: flex; align-items: center; gap: 6px; }
+    li .totp-code {
+      font-family: 'Cascadia Code', Consolas, monospace;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+    }
+    .totp-ring { width: 16px; height: 16px; flex-shrink: 0; transform: rotate(-90deg); }
+    .totp-ring__track { fill: none; stroke: #3a3a3a; stroke-width: 3; }
+    .totp-ring__progress { fill: none; stroke: #d4a017; stroke-width: 3; stroke-linecap: round; }
+
+    /* .totp-setup／.totp-row 用 JS 切換 hidden 屬性顯示/隱藏（見 popup.js 的
+       setTotpDraft／resetTotpDraft）——但這兩個規則本身寫死 display: flex，跟瀏覽器內建的
+       [hidden] { display: none } 特異度打平時，網頁自己這條「後套用」的規則會贏，導致
+       hidden 屬性完全失效、兩個區塊永遠同時顯示（實際發生過：畫面上「移除」按鈕那排跟
+       貼密鑰輸入框同時疊在一起）。用更高特異度的 [hidden] 版本明確覆蓋回去。 */
+    .totp-setup { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .totp-setup[hidden] { display: none; }
+    .totp-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .totp-row[hidden] { display: none; }
+    .totp-error { font-size: 11px; color: #e0664a; margin: 0; }
   </style>
 </head>
 <body>
@@ -116,6 +150,27 @@
       <div class="password-row">
         <input id="addPassword" type="text" />
         <button id="generateButton" class="action secondary" type="button" data-i18n="generateButtonLabel">產生</button>
+      </div>
+    </div>
+    <div class="field">
+      <label data-i18n="totpLabel">雙重驗證（TOTP）</label>
+      <!-- 已經解析出一組密鑰，存檔前先讓使用者肉眼確認 -->
+      <div id="totpPreviewRow" class="totp-row" hidden>
+        <svg viewBox="0 0 36 36" class="totp-ring" style="width: 22px; height: 22px;">
+          <circle class="totp-ring__track" cx="18" cy="18" r="16" />
+          <circle id="totpPreviewRing" class="totp-ring__progress" cx="18" cy="18" r="16" />
+        </svg>
+        <span id="totpPreviewCode" class="totp-code">------</span>
+        <button id="totpRemoveButton" class="action secondary" type="button" data-i18n="totpRemoveButton">移除</button>
+      </div>
+      <!-- 還沒設定過——只支援手動貼上，不支援 QR code 圖片上傳。Chrome 擴充功能的 popup
+           是失焦就自動關閉的浮動視窗，點 <input type="file"> 跳出原生「開啟檔案」對話框的
+           瞬間 popup 會被系統判定成失焦、整個關掉（連同它的 JS 執行環境），使用者只會看到
+           「點了沒反應」——這是 Chromium 平台本身的既有限制，不是能在這個 popup 裡修好的
+           bug，要掃 QR code 請到 FileLocker App 內的密碼庫頁面（見 CLAUDE.md 已知的坑）。 -->
+      <div id="totpSetup" class="totp-setup">
+        <input id="totpManualInput" type="text" data-i18n-placeholder="totpManualPlaceholder" placeholder="或貼上密鑰／otpauth:// 連結" />
+        <p class="hint" data-i18n="totpQrUnavailableInPopupHint">要用 QR Code 掃描設定，請到 FileLocker App 內的密碼庫頁面。</p>
       </div>
     </div>
     <div class="form-actions">

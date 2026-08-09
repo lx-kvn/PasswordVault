@@ -50,6 +50,8 @@ public sealed class PasswordLockerPlugin : IPasswordLockerPlugin
             "revealPasswordLockerPassword" => await HandleRevealPasswordAsync(handlers, request),
             "revealPasswordLockerUsername" => await HandleRevealUsernameAsync(handlers, request),
             "revealPasswordLockerNotes" => await HandleRevealNotesAsync(handlers, request),
+            "revealPasswordLockerTotp" => await HandleRevealTotpAsync(handlers, request),
+            "revealPasswordLockerTotpForSite" => await HandleRevealTotpForSiteAsync(handlers, request),
             "deletePasswordLockerCredentials" => await HandleDeleteCredentialsAsync(handlers, request),
             "generatePasswordLockerPassword" => HandleGeneratePassword(request),
             "searchPasswordLockerNotes" => await HandleSearchNotesAsync(handlers, request),
@@ -93,7 +95,8 @@ public sealed class PasswordLockerPlugin : IPasswordLockerPlugin
                 item.LinkedVaultItemUuid,
                 item.SourceDeleted,
                 item.CreatedAtUtc,
-                item.UpdatedAtUtc
+                item.UpdatedAtUtc,
+                item.HasTotp
             })
         };
     }
@@ -224,8 +227,26 @@ public sealed class PasswordLockerPlugin : IPasswordLockerPlugin
         var notes = request.TryGetProperty("notes", out var notesProp) ? notesProp.GetString() : null;
         var linkedVaultItemUuid = request.TryGetProperty("linkedVaultItemUuid", out var linkedProp) ? linkedProp.GetString() : null;
 
+        // "totp" 屬性有沒有出現在請求裡，決定要不要動這筆紀錄的 TOTP 設定——不出現＝這次存檔
+        // 跟 TOTP 無關（例如只是改密碼），維持原樣；出現但是 JSON null＝使用者按了「移除
+        // TOTP」；出現且是物件＝設定新密鑰。跟 PasswordLockerService.AddOrUpdateCredentialAsync
+        // 的 updateTotp 旗標語意一致，見該方法上的說明。
+        var updateTotp = request.TryGetProperty("totp", out var totpProp);
+        string? totpSecret = null;
+        string? totpAlgorithm = null;
+        int? totpDigits = null;
+        int? totpPeriodSeconds = null;
+        if (updateTotp && totpProp.ValueKind == JsonValueKind.Object)
+        {
+            totpSecret = totpProp.TryGetProperty("secret", out var secretProp) ? secretProp.GetString() : null;
+            totpAlgorithm = totpProp.TryGetProperty("algorithm", out var algorithmProp) ? algorithmProp.GetString() : null;
+            totpDigits = totpProp.TryGetProperty("digits", out var digitsProp) && digitsProp.TryGetInt32(out var digitsValue) ? digitsValue : null;
+            totpPeriodSeconds = totpProp.TryGetProperty("period", out var periodProp) && periodProp.TryGetInt32(out var periodValue) ? periodValue : null;
+        }
+
         var result = await handlers.AddOrUpdateCredentialAsync(
-            id, category, title, domains, username, password, notes, linkedVaultItemUuid, usernameHidden);
+            id, category, title, domains, username, password, notes, linkedVaultItemUuid, usernameHidden,
+            updateTotp, totpSecret, totpAlgorithm, totpDigits, totpPeriodSeconds);
 
         return new
         {
@@ -283,6 +304,26 @@ public sealed class PasswordLockerPlugin : IPasswordLockerPlugin
             id,
             result.Success,
             result.Notes,
+            result.ErrorMessage,
+            result.ErrorCode,
+            result.ErrorDetail
+        };
+    }
+
+    private static async Task<object?> HandleRevealTotpAsync(PasswordLockerProtocolHandlers handlers, JsonElement request)
+    {
+        var id = request.GetProperty("id").GetString() ?? "";
+        var result = await handlers.RevealTotpAsync(id);
+
+        return new
+        {
+            type = "revealPasswordLockerTotpResult",
+            id,
+            result.Success,
+            result.Secret,
+            result.Algorithm,
+            result.Digits,
+            result.PeriodSeconds,
             result.ErrorMessage,
             result.ErrorCode,
             result.ErrorDetail
@@ -367,7 +408,8 @@ public sealed class PasswordLockerPlugin : IPasswordLockerPlugin
                 item.Title,
                 item.AssociatedDomains,
                 item.Username,
-                item.UsernameHidden
+                item.UsernameHidden,
+                item.HasTotp
             })
         };
     }
@@ -398,6 +440,27 @@ public sealed class PasswordLockerPlugin : IPasswordLockerPlugin
             id,
             result.Success,
             result.Password,
+            result.ErrorMessage,
+            result.ErrorCode,
+            result.ErrorDetail
+        };
+    }
+
+    private static async Task<object?> HandleRevealTotpForSiteAsync(PasswordLockerProtocolHandlers handlers, JsonElement request)
+    {
+        var id = request.GetProperty("id").GetString() ?? "";
+        var domain = request.GetProperty("domain").GetString() ?? "";
+        var result = await handlers.RevealTotpForSiteAsync(id, domain);
+
+        return new
+        {
+            type = "revealPasswordLockerTotpForSiteResult",
+            id,
+            result.Success,
+            result.Secret,
+            result.Algorithm,
+            result.Digits,
+            result.PeriodSeconds,
             result.ErrorMessage,
             result.ErrorCode,
             result.ErrorDetail

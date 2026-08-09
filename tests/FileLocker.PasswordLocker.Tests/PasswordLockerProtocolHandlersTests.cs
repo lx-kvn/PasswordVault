@@ -344,4 +344,195 @@ public class PasswordLockerProtocolHandlersTests : IDisposable
         Assert.False(result.Success);
         Assert.Equal(ErrorCodes.PasswordLockerNotVerified, result.ErrorCode);
     }
+
+    // ---- TOTP：新鮮度視窗——揭露動態碼比揭露密碼更嚴格的行為 ----
+
+    [Fact]
+    public async Task AddOrUpdateCredential_WithTotpSecret_ThenReveal_RoundTripsWithDefaults()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+
+        var result = await _handlers.RevealTotpAsync(add.EntryId!);
+
+        Assert.True(result.Success);
+        Assert.Equal("JBSWY3DPEHPK3PXP", result.Secret);
+        Assert.Equal("SHA1", result.Algorithm);
+        Assert.Equal(6, result.Digits);
+        Assert.Equal(30, result.PeriodSeconds);
+    }
+
+    [Fact]
+    public async Task RevealTotpAsync_WithoutTotpConfigured_ReturnsTotpNotConfigured()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2",
+            notes: null, linkedVaultItemUuid: null);
+
+        var result = await _handlers.RevealTotpAsync(add.EntryId!);
+
+        Assert.False(result.Success);
+        Assert.Equal(ErrorCodes.PasswordLockerTotpNotConfigured, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task RevealTotpAsync_FreshnessWindowExpired_ReturnsNotVerified_EvenThoughAppSessionStillValid()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+
+        // 模擬「上次完整驗證是 45 秒前」——比 TOTP 新鮮度視窗（30 秒）久，但比一般 app session
+        // 逾時（預設 1 分鐘）短，剛好落在「密碼／備註還能沿用既有 session，但 TOTP 必須重新
+        // 驗證」這個中間地帶，這正是本測試要驗證的行為。Clone 一份主金鑰再傳回去（不能直接
+        // 傳 TryGetAppSessionMasterKey() 拿到的原始參考——RecordAppSessionVerified 內部會先
+        // ZeroMemory 舊的主金鑰才指派新的，如果新舊是同一個參考，會把自己剛指派的金鑰也歸零）。
+        var clonedMasterKey = (byte[])_service.TryGetAppSessionMasterKey()!.Clone();
+        _service.RecordAppSessionVerified(clonedMasterKey, DateTime.UtcNow.AddSeconds(-45));
+
+        var totpResult = await _handlers.RevealTotpAsync(add.EntryId!);
+        Assert.False(totpResult.Success);
+        Assert.Equal(ErrorCodes.PasswordLockerNotVerified, totpResult.ErrorCode);
+
+        // 對照組：同一個「過期新鮮度視窗、但 app session 還沒到期」的狀態下，密碼揭露完全
+        // 不受影響——證明新鮮度視窗是 TOTP 專屬的額外限制，不是不小心把一般 session 也弄短了。
+        var passwordResult = await _handlers.RevealPasswordAsync(add.EntryId!);
+        Assert.True(passwordResult.Success);
+    }
+
+    [Fact]
+    public async Task RevealTotpAsync_ImmediatelyAfterVerify_Succeeds()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+
+        // 重新驗證一次（模擬前端強制跳驗證彈窗的行為），緊接著揭露——這才是正常使用流程。
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var result = await _handlers.RevealTotpAsync(add.EntryId!);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public async Task RevealTotpForSiteAsync_DomainOwnsCredentialAndSiteSessionValid_ReturnsSecret()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+        _handlers.RecordSiteVerified("github.com");
+
+        var result = await _handlers.RevealTotpForSiteAsync(add.EntryId!, "github.com");
+
+        Assert.True(result.Success);
+        Assert.Equal("JBSWY3DPEHPK3PXP", result.Secret);
+    }
+
+    [Fact]
+    public async Task RevealTotpForSiteAsync_DomainDoesNotOwnCredential_ReturnsEntryNotFound()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var githubEntry = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+        await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "Evil",
+            domains: ["evil.com"], username: "victim", password: "should-not-leak",
+            notes: null, linkedVaultItemUuid: null);
+        _handlers.RecordSiteVerified("evil.com");
+
+        var result = await _handlers.RevealTotpForSiteAsync(githubEntry.EntryId!, "evil.com");
+
+        Assert.False(result.Success);
+        Assert.Equal(ErrorCodes.PasswordLockerEntryNotFound, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task RevealTotpForSiteAsync_FreshnessWindowExpired_ReturnsNotVerified_EvenThoughSiteSessionValid()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+        _handlers.RecordSiteVerified("github.com");
+
+        var clonedMasterKey = (byte[])_service.TryGetAppSessionMasterKey()!.Clone();
+        _service.RecordAppSessionVerified(clonedMasterKey, DateTime.UtcNow.AddSeconds(-45));
+
+        var result = await _handlers.RevealTotpForSiteAsync(add.EntryId!, "github.com");
+
+        Assert.False(result.Success);
+        Assert.Equal(ErrorCodes.PasswordLockerNotVerified, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task AddOrUpdateCredential_TotpPropertyOmitted_LeavesExistingTotpUntouched()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+
+        // 之後只改密碼，不帶 updateTotp（預設 false）——TOTP 要維持原樣，不能被悄悄清掉。
+        await _handlers.AddOrUpdateCredentialAsync(
+            id: add.EntryId, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "new-password",
+            notes: null, linkedVaultItemUuid: null);
+
+        var result = await _handlers.RevealTotpAsync(add.EntryId!);
+        Assert.True(result.Success);
+        Assert.Equal("JBSWY3DPEHPK3PXP", result.Secret);
+    }
+
+    [Fact]
+    public async Task AddOrUpdateCredential_UpdateTotpWithEmptySecret_RemovesTotp()
+    {
+        await _handlers.SetupCredentialAsync("correct-horse-battery-staple");
+        await _handlers.VerifyAsync("correct-horse-battery-staple", IntPtr.Zero);
+        var add = await _handlers.AddOrUpdateCredentialAsync(
+            id: null, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2", notes: null,
+            linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "JBSWY3DPEHPK3PXP");
+
+        await _handlers.AddOrUpdateCredentialAsync(
+            id: add.EntryId, CredentialCategory.Website, title: "GitHub",
+            domains: ["github.com"], username: "octocat", password: "hunter2",
+            notes: null, linkedVaultItemUuid: null, usernameHidden: false,
+            updateTotp: true, totpSecret: "");
+
+        var result = await _handlers.RevealTotpAsync(add.EntryId!);
+        Assert.False(result.Success);
+        Assert.Equal(ErrorCodes.PasswordLockerTotpNotConfigured, result.ErrorCode);
+    }
 }

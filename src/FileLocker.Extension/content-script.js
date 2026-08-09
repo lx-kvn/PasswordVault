@@ -58,6 +58,24 @@ function isNewPasswordField(field) {
   return /new|register|signup|confirm/.test(nameId)
 }
 
+/// 驗證碼／OTP 輸入框判定：`autocomplete="one-time-code"` 是 WHATWG 標準屬性（Safari／
+/// Chrome 原生簡訊 OTP 自動填入用的就是這個標記），信心度最高、優先看；沒標的話退一步看
+/// name/id 有沒有 otp/verification code/2fa/auth code 這類字樣。跟密碼欄位是完全獨立的
+/// 另一種欄位類型，找得到 hasTotp 的憑證才會提供「使用動態驗證碼」這個選單項（見
+/// showDropdownForField），不影響現有的帳號/密碼偵測邏輯。
+function isOtpField(field) {
+  const autocomplete = (field.getAttribute('autocomplete') || '').toLowerCase()
+  if (autocomplete === 'one-time-code') return true
+  const nameId = `${field.name || ''} ${field.id || ''}`.toLowerCase()
+  return /otp|verification.?code|2fa|auth.?code/.test(nameId)
+}
+
+function findOtpFields() {
+  return Array.from(document.querySelectorAll(
+    'input[autocomplete="one-time-code"], input[type="text"], input[type="tel"], input[type="number"]'
+  )).filter(isOtpField)
+}
+
 /// 「這個帳號／email 欄位屬於註冊表單」的判定：看它所在的 <form>（沒有表單包著就看整份
 /// 文件）裡有沒有任何一個「新設密碼」欄位（見 isNewPasswordField）——註冊表單本來就會
 /// 同時要求設一組新密碼，登入表單不會。判斷對了才建議使用預設電子信箱（見
@@ -478,6 +496,82 @@ function fillNewPasswordFields(focusedField, password) {
   }
 }
 
+/// 驗證碼輸入框聚焦時顯示——只有 hasTotp 的憑證才會出現在這個清單裡（見
+/// loadCredentialsForCurrentDomain 回應本來就帶 hasTotp，跟密碼欄位共用同一份查詢，
+/// 不需要另外打一次請求）。點下去會跳出 PasswordLockerBrowserVerifyWindow（TOTP 的新鮮度
+/// 視窗比密碼更嚴格，見 PasswordLockerService 的說明，每次都要重新驗證，不會沿用密碼
+/// 欄位剛驗證過的 session）。
+function renderTotpEntry(shadow, items, field) {
+  const style = document.createElement('style')
+  style.textContent = MENU_STYLE
+
+  const menu = document.createElement('div')
+  menu.className = 'menu'
+  shadow.append(style, menu)
+
+  const header = document.createElement('div')
+  header.className = 'header'
+  header.textContent = t('header', currentLanguage)
+  menu.append(header)
+
+  for (const item of items) {
+    const { button, title, text } = createMenuItemButton(
+      t('useTotpCodeTitle', currentLanguage),
+      item.title || item.associatedDomains?.[0] || t('useTotpCodeSubtitle', currentLanguage)
+    )
+    menu.append(button)
+
+    button.addEventListener('mousedown', (e) => e.preventDefault())
+    button.addEventListener('click', async () => {
+      text.replaceChildren()
+      const statusText = document.createElement('div')
+      statusText.className = 'subtitle'
+      statusText.textContent = t('verifying', currentLanguage)
+      text.append(title, statusText)
+
+      await useTotpForField(item, field)
+      removeDropdown()
+    })
+  }
+
+  requestAnimationFrame(() => menu.setAttribute('data-open', ''))
+}
+
+/// 拿到密鑰後在這裡本地算碼、填入——密鑰只在這個函式的執行期間短暫存在於變數裡，
+/// 用完即棄，不寫進任何持久化狀態（跟密碼自動填入的既有做法一致，見 fillForm）。
+/// 剩餘時間少於 5 秒才會等下一輪：這是唯一的例外情況，多數時候拿到就直接填，不值得
+/// 為了「萬一使用者手速很慢」這種邊緣情況每次都多等。
+async function useTotpForField(item, field) {
+  const domain = item.associatedDomains?.[0]
+  if (!domain) return
+
+  const result = await chrome.runtime.sendMessage({
+    type: 'revealPasswordLockerTotpForSite',
+    id: item.id,
+    domain
+  })
+  if (!result?.success) return
+
+  const period = result.periodSeconds || 30
+  const remaining = totpSecondsRemaining(period)
+  if (remaining < 5) {
+    // 這次算出來的碼再過不到 5 秒就換下一組——寧可讓使用者多等一下下，也不要填進一個
+    // 幾乎立刻就會過期、送出表單時很可能已經失效的碼。
+    await new Promise((resolve) => setTimeout(resolve, remaining * 1000 + 200))
+  }
+
+  let code
+  try {
+    code = await computeTotpCode(result.secret, result.algorithm, result.digits, period)
+  } catch {
+    return
+  }
+
+  field.value = code
+  field.dispatchEvent(new Event('input', { bubbles: true }))
+  field.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 function renderCredentialPickerItems(menu, items, field) {
   for (const item of items) {
     const { button, title, text } = createMenuItemButton(
@@ -880,6 +974,24 @@ async function showDropdownForField(field) {
   if (activeField === field) return
   removeDropdown()
 
+  // 驗證碼輸入框——只有這個網域底下有 hasTotp 的憑證才顯示，欄位有內容代表使用者正在
+  // 自己手動輸入（可能是簡訊驗證碼這種本來就不歸密碼庫管的類型），不要打斷。
+  if (isOtpField(field) && !field.value) {
+    const { items } = await loadCredentialsForCurrentDomain()
+    const totpItems = items.filter((item) => item.hasTotp)
+    if (document.activeElement !== field) return
+    if (totpItems.length > 0) {
+      activeField = field
+      const { host, shadow } = buildDropdownHost(field)
+      document.body.append(host)
+      renderTotpEntry(shadow, totpItems, field)
+      repositionHandler = () => positionHostToField(host, field)
+      window.addEventListener('scroll', repositionHandler, true)
+      window.addEventListener('resize', repositionHandler)
+      return
+    }
+  }
+
   // 新設密碼欄位、而且使用者還沒自己打字進去——直接跳「使用建議密碼」，不查也不顯示
   // 已存憑證清單（見 isNewPasswordField 上的說明）。已經有內容的欄位代表使用者正在自己
   // 手動輸入，不要打斷。
@@ -958,7 +1070,7 @@ function findAllUsernameFields(hasPasswordField) {
 
 function attachFieldListeners() {
   const passwordFields = findPasswordFields()
-  const fields = [...passwordFields, ...findAllUsernameFields(passwordFields.length > 0)]
+  const fields = [...passwordFields, ...findAllUsernameFields(passwordFields.length > 0), ...findOtpFields()]
 
   for (const field of fields) {
     if (attachedFields.has(field)) continue

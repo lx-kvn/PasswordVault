@@ -84,4 +84,13 @@ public class PasswordCredentialEntry
 
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
+
+    /// <summary>只有 Website 分類使用。解密後是 JSON：
+    /// <c>{"secret":"BASE32...","algorithm":"SHA1","digits":6,"period":30}</c>——algorithm／
+    /// digits／period 雖然不是機密本身，但一起包進這個加密欄位，不另外開明文欄位，避免未驗證
+    /// 查詢（FindCredentialsForDomainAsync／ListCredentialsMetadataAsync）多洩漏一點這筆憑證的
+    /// TOTP 設定細節。有沒有設定 TOTP（這個欄位是不是 null）本身會透過 metadata 的 HasTotp
+    /// 布林值對外可見，跟 UsernameHidden 的既有設計同一個道理——「有沒有」可以公開，「內容」
+    /// 才是機密。</summary>
+    public string? EncryptedTotpSecretBase64 { get; set; }
 }

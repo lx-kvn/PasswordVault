@@ -60,4 +60,12 @@ public record PasswordCredentialMetadata(
     string? LinkedVaultItemUuid,
     bool SourceDeleted,
     DateTime CreatedAtUtc,
-    DateTime UpdatedAtUtc);
+    DateTime UpdatedAtUtc,
+    bool HasTotp = false);
+
+/// <summary>解密後的 TOTP 設定，給前端本地開始算動態碼用——見
+/// PasswordLockerService.RevealTotpAsync 上的新鮮度視窗說明，這個方法本身不受一般 session
+/// 保護，要求近期內剛完成過一次完整驗證。</summary>
+public record PasswordLockerDecryptedTotpResult(
+    bool Success, string? Secret = null, string? Algorithm = null, int? Digits = null, int? PeriodSeconds = null,
+    string? ErrorMessage = null, string? ErrorCode = null, string? ErrorDetail = null);

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="application-name" content="TestVault 測試站" />
+<meta property="og:site_name" content="TestVault 測試站" />
+<title>TestVault - 登入</title>
+<style>
+  :root {
+    color-scheme: light;
+    --accent: #b8860b;
+    --border: #d9d9d9;
+    --text: #1c1c1e;
+    --muted: #7a7a7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    background: #f4f4f5;
+    color: var(--text);
+  }
+  .card {
+    width: 360px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .brand__logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+  }
+  .brand__name {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    padding: 10px 0;
+    text-align: center;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 14px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+  form { display: none; flex-direction: column; gap: 14px; }
+  form.active { display: flex; }
+  label {
+    font-size: 13px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 6px;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button.submit {
+    margin-top: 6px;
+    padding: 11px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.submit:hover { filter: brightness(1.05); }
+  .status {
+    margin-top: 16px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.success { background: #eafaf0; color: #1a7d3c; }
+  .status.error { background: #fdecea; color: #b3261e; }
+  .hint {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="brand__logo">T</div>
+      <div class="brand__name">TestVault</div>
+    </div>
+
+    <div class="tabs">
+      <button type="button" class="tab active" data-tab="login">登入</button>
+      <button type="button" class="tab" data-tab="register">註冊</button>
+      <button type="button" class="tab" data-tab="forgot">忘記密碼</button>
+    </div>
+
+    <!-- 登入表單 -->
+    <form id="login-form" class="active" autocomplete="on">
+      <div>
+        <label for="login-email">電子郵件</label>
+        <input type="email" id="login-email" name="email" placeholder="you@example.com" autocomplete="username" required />
+      </div>
+      <div>
+        <label for="login-password">密碼</label>
+        <input type="password" id="login-password" name="password" placeholder="輸入密碼" autocomplete="current-password" required />
+      </div>
+      <div class="row-between">
+        <label class="checkbox-row">
+          <input type="checkbox" id="login-remember" style="width:auto;" />
+          記住我
+        </label>
+        <a href="#" data-tab-link="forgot">忘記密碼？</a>
+      </div>
+      <button type="submit" class="submit">登入</button>
+      <div class="row-between" style="justify-content:center; margin-top:4px;">
+        <span style="color: var(--muted);">還沒有帳號？</span>
+        <a href="#" data-tab-link="register">立即註冊</a>
+      </div>
+    </form>
+
+    <!-- 註冊表單 -->
+    <form id="register-form" autocomplete="on">
+      <div>
+        <label for="register-name">使用者名稱</label>
+        <input type="text" id="register-name" name="name" placeholder="你的名字" autocomplete="name" required />
+      </div>
+      <div>
+        <label for="register-email">電子郵件</label>
+        <input type="email" id="register-email" name="email" placeholder="you@example.com" autocomplete="username" required />
+      </div>
+      <div>
+        <label for="register-password">密碼</label>
+        <input type="password" id="register-password" name="new-password" placeholder="設定密碼" autocomplete="new-password" required />
+      </div>
+      <div>
+        <label for="register-password-confirm">確認密碼</label>
+        <input type="password" id="register-password-confirm" name="confirm-password" placeholder="再輸入一次密碼" autocomplete="new-password" required />
+      </div>
+      <button type="submit" class="submit">建立帳號</button>
+      <div class="row-between" style="justify-content:center; margin-top:4px;">
+        <span style="color: var(--muted);">已經有帳號？</span>
+        <a href="#" data-tab-link="login">回到登入</a>
+      </div>
+    </form>
+
+    <!-- 忘記密碼表單 -->
+    <form id="forgot-form" autocomplete="on">
+      <div>
+        <label for="forgot-email">電子郵件</label>
+        <input type="email" id="forgot-email" name="email" placeholder="you@example.com" autocomplete="username" required />
+      </div>
+      <button type="submit" class="submit">寄送重設密碼信</button>
+      <div class="row-between" style="justify-content:center; margin-top:4px;">
+        <a href="#" data-tab-link="login">回到登入</a>
+      </div>
+    </form>
+
+    <div id="status" class="status"></div>
+
+    <p class="hint">
+      這是純前端假頁面，僅供本機測試 FileLocker 密碼庫瀏覽器擴充功能用：所有表單都不會送出任何資料到任何伺服器，
+      按下按鈕只會在本頁顯示假的成功訊息。分頁切換不會重新整理頁面（模擬 SPA 行為），
+      可以用來測試偵測憑證提示條、MutationObserver、自動填入、以及「選擇密碼」流程。
+    </p>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const forms = {
+      login: document.getElementById('login-form'),
+      register: document.getElementById('register-form'),
+      forgot: document.getElementById('forgot-form'),
+    };
+    const statusEl = document.getElementById('status');
+
+    function activateTab(name) {
+      tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === name));
+      Object.entries(forms).forEach(([key, form]) => form.classList.toggle('active', key === name));
+      statusEl.classList.remove('show', 'success', 'error');
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+    });
+
+    document.querySelectorAll('[data-tab-link]').forEach((link) => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        activateTab(link.dataset.tabLink);
+      });
+    });
+
+    function showStatus(message, kind) {
+      statusEl.textContent = message;
+      statusEl.className = `status show ${kind}`;
+    }
+
+    forms.login.addEventListener('submit', (e) => {
+      e.preventDefault();
+      showStatus('（假頁面）登入成功，即將跳轉…', 'success');
+      const email = document.getElementById('login-email').value;
+      // 真的換頁（不是 SPA 內切換），擴充功能靠網址列變化判斷「登入完成」，
+      // 只用 preventDefault + 原地換內容偵測不到，一定要跳到下一頁。
+      setTimeout(() => {
+        window.location.href = `dashboard.html?email=${encodeURIComponent(email)}`;
+      }, 400);
+    });
+
+    forms.register.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const pw = document.getElementById('register-password').value;
+      const pwConfirm = document.getElementById('register-password-confirm').value;
+      if (pw !== pwConfirm) {
+        showStatus('（假頁面）兩次輸入的密碼不一致。', 'error');
+        return;
+      }
+      showStatus('（假頁面）帳號建立成功，即將跳轉…', 'success');
+      const email = document.getElementById('register-email').value;
+      // 跟登入表單同樣的原因：一定要真的換頁，擴充功能才有機會偵測到「送出成功」。
+      setTimeout(() => {
+        window.location.href = `dashboard.html?email=${encodeURIComponent(email)}`;
+      }, 400);
+    });
+
+    forms.forgot.addEventListener('submit', (e) => {
+      e.preventDefault();
+      showStatus('（假頁面）重設密碼信已「寄出」，沒有任何資料被送出。', 'success');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+{
+  "placeholderTitle": "Password Locker",
+  "placeholderBody": "The component skeleton is wired up, but the real screens (credential list, add/edit form, TOTP, etc.) haven't been moved over from FileLocker.Web's App.vue yet — that's the next round of work."
+}

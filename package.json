@@ -1,0 +1,10 @@
+{
+  "name": "passwordvault-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "description": "npm workspace root——不會被發布，只是讓 packages/password-locker-ui 跟 src/PasswordVault.Web 在本機開發時能互相連結本地版本，不用先 npm publish 才看得到最新改動（見 docs/adr/0004，FileLocker repo）。",
+  "workspaces": [
+    "packages/*",
+    "src/PasswordVault.Web"
+  ]
+}

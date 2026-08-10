@@ -1,0 +1,4 @@
+{
+  "placeholderTitle": "密碼庫",
+  "placeholderBody": "元件骨架已經接上，實際畫面（帳密清單、新增/編輯表單、TOTP 等）還沒從 FileLocker.Web 的 App.vue 搬過來——這是下一輪的工作。"
+}

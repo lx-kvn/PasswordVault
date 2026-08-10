@@ -57,12 +57,24 @@ public partial class App : Application
             "PasswordVault");
         Directory.CreateDirectory(appDataDir);
 
-        // TODO（骨架階段先不做）：偵測 %AppData%\FileLocker\PasswordLocker\ 底下有沒有舊資料、
-        // 這裡的新路徑是空的的話自動搬過去（見 PasswordVault_獨立化_規劃.md 第 7 節）。
-        // 失敗時如何提示使用者、兩邊都有資料時怎麼處理，規劃文件明確留到動工前另外定案，
-        // 這輪骨架階段還沒有 UI 可以顯示這類提示，先不接這塊邏輯，避免不完整的搬移邏輯
-        // 沒有對應的錯誤顯示管道。
         var passwordLockerDir = Path.Combine(appDataDir, "PasswordLocker");
+
+        // 資料自動遷移（見規劃文件第 7 節，這輪定案）：只搬「複製」，舊檔案原封不動保留；
+        // 新舊路徑都已經有資料時新路徑優先、安靜略過，不覆蓋、不合併。失敗時（例如磁碟權限
+        // 問題）沒有專屬的錯誤提示 UI——這裡吞掉例外讓程式繼續用新路徑正常啟動（等同「這次
+        // 沒搬成功」，不影響全新使用者或已經手動搬過的使用者），比讓一個非核心的背景搬移動作
+        // 擋住整個啟動流程更合理。
+        try
+        {
+            var legacyPasswordLockerDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "FileLocker", "PasswordLocker");
+            LegacyDataMigration.MigrateIfNeeded(legacyPasswordLockerDir, passwordLockerDir);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
         _passwordLockerPlugin = new PasswordLockerPlugin();
         _passwordLockerPlugin.Initialize(new FileLocker.PluginContracts.PasswordLockerPluginContext(
             passwordLockerDir,

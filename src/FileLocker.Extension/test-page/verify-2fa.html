@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="application-name" content="TestVault 測試站" />
+<meta property="og:site_name" content="TestVault 測試站" />
+<title>TestVault - 兩步驟驗證</title>
+<style>
+  :root { color-scheme: light; --accent: #b8860b; --border: #d9d9d9; --text: #1c1c1e; --muted: #7a7a7a; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    background: #f4f4f5;
+    color: var(--text);
+  }
+  .card {
+    width: 360px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+  .brand__logo {
+    width: 32px; height: 32px; border-radius: 8px; background: var(--accent);
+    display: flex; align-items: center; justify-content: center; color: white; font-weight: 700;
+  }
+  .brand__name { font-size: 18px; font-weight: 600; }
+  h1 { font-size: 16px; margin: 0 0 6px; }
+  p.subtitle { color: var(--muted); font-size: 13px; margin: 0 0 20px; line-height: 1.6; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+  /* autocomplete="one-time-code" 是 content-script.js 偵測驗證碼欄位的第一信任來源
+     （見 isOtpField），這裡刻意標上去，模擬瀏覽器/網站原生支援簡訊 OTP 自動填入的標準寫法。
+     type="text" 而不是 type="number"——多數真實網站的驗證碼欄位也是文字輸入，數字鍵盤
+     只是行動裝置上的軟鍵盤提示，不影響桌面瀏覽器測試。 */
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 20px;
+    letter-spacing: 0.3em;
+    text-align: center;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.submit {
+    margin-top: 16px;
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.submit:hover { filter: brightness(1.05); }
+  .hint { margin-top: 20px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="brand__logo">T</div>
+      <div class="brand__name">TestVault</div>
+    </div>
+    <h1>輸入驗證碼</h1>
+    <p class="subtitle">請輸入 TestVault 驗證器 App 顯示的 6 位數驗證碼。</p>
+
+    <form id="verify-form" autocomplete="on">
+      <label for="otp-code">驗證碼</label>
+      <input type="text" id="otp-code" name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" required />
+      <button type="submit" class="submit">驗證</button>
+    </form>
+
+    <p class="hint">
+      這是假的兩步驟驗證頁面，純粹用來測試擴充功能能不能偵測到 autocomplete="one-time-code"
+      這個驗證碼欄位並提供自動填入——不會真的核對輸入的驗證碼，按下「驗證」一律視為成功、
+      直接跳轉到 dashboard.html。要對照這個網站要用的密鑰，見 index.html 底部的測試用
+      TOTP 面板。
+    </p>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email') || '';
+
+    document.getElementById('verify-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      // 真的換頁，理由跟 index.html 的登入/註冊表單一樣：擴充功能靠網址列變化判斷
+      // 「這一步完成了」，原地換內容偵測不到。
+      window.location.href = `dashboard.html?email=${encodeURIComponent(email)}`;
+    });
+  </script>
+</body>
+</html>

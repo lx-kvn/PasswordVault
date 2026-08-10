@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title data-i18n="header">FileLocker 密碼庫</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      width: 300px;
+      margin: 0;
+      padding: 12px;
+      background: #1f1f1f;
+      color: #fff;
+    }
+    h1 { font-size: 14px; margin: 0 0 8px; }
+    p.hint { font-size: 12px; color: #999; margin: 0 0 10px; line-height: 1.5; }
+    ul { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; }
+    li {
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      outline: none;
+    }
+    li:hover { background: #2e2e2e; }
+    li .domains { font-size: 11px; color: #999; }
+    .empty { font-size: 12px; color: #999; padding: 12px 0; text-align: center; }
+    .status { font-size: 12px; color: #d4a017; margin-top: 8px; }
+
+    /* 用獨立的 div 列（不是 ul/li）——曾經用 <li> 包這兩顆按鈕，外層 <ul> 的
+       overflow-y:auto／max-height 樣式被一起繼承，Chrome 對可捲動容器裡的子項目會加一圈
+       微妙的陰影/光暈提示可以捲動，這裡只有兩行、完全不需要捲動，改用 div 徹底避開這條路。 */
+    .menu-actions { margin-top: 4px; border-top: 1px solid #333; padding-top: 4px; }
+    .menu-action {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: #d4a017;
+      outline: none;
+    }
+    .menu-action:hover { background: #2e2e2e; }
+    .menu-action svg { flex-shrink: 0; width: 15px; height: 15px; }
+
+    .form { display: none; flex-direction: column; gap: 10px; }
+    .form.visible { display: flex; }
+    .field label { display: block; font-size: 11.5px; color: #999; margin-bottom: 4px; }
+    .field input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #141414;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #fff;
+      font: inherit;
+      font-size: 13px;
+      padding: 7px 9px;
+    }
+    .field input:focus { outline: none; border-color: #d4a017; }
+    .password-row { display: flex; gap: 6px; }
+    .password-row input { flex: 1; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+    button.action {
+      font: inherit;
+      font-size: 12.5px;
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+    .primary { background: #d4a017; color: #1f1f1f; font-weight: 600; }
+    .secondary { background: #3a3a3a; color: #fff; }
+
+    /* TOTP：清單項目裡的小按鈕＋展開後的動態碼＋圓形倒數，跟 App.vue／content-script.js
+       共用同一套視覺語言（Google Authenticator 風格的圓環，見 shared.js 的 totpRingOffset）。 */
+    .totp-toggle {
+      flex-shrink: 0;
+      background: transparent;
+      border: none;
+      color: #d4a017;
+      cursor: pointer;
+      padding: 2px 4px;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+    .totp-toggle:hover { background: #33342c; }
+    li .totp-code-row { display: flex; align-items: center; gap: 6px; }
+    li .totp-code {
+      font-family: 'Cascadia Code', Consolas, monospace;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+    }
+    .totp-ring { width: 16px; height: 16px; flex-shrink: 0; transform: rotate(-90deg); }
+    .totp-ring__track { fill: none; stroke: #3a3a3a; stroke-width: 3; }
+    .totp-ring__progress { fill: none; stroke: #d4a017; stroke-width: 3; stroke-linecap: round; }
+
+    /* .totp-setup／.totp-row 用 JS 切換 hidden 屬性顯示/隱藏（見 popup.js 的
+       setTotpDraft／resetTotpDraft）——但這兩個規則本身寫死 display: flex，跟瀏覽器內建的
+       [hidden] { display: none } 特異度打平時，網頁自己這條「後套用」的規則會贏，導致
+       hidden 屬性完全失效、兩個區塊永遠同時顯示（實際發生過：畫面上「移除」按鈕那排跟
+       貼密鑰輸入框同時疊在一起）。用更高特異度的 [hidden] 版本明確覆蓋回去。 */
+    .totp-setup { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .totp-setup[hidden] { display: none; }
+    .totp-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .totp-row[hidden] { display: none; }
+    .totp-error { font-size: 11px; color: #e0664a; margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="listView">
+    <h1 data-i18n="choosePasswordTitle">選擇密碼</h1>
+    <p class="hint" data-i18n="choosePasswordHint">從密碼庫裡挑一筆重複使用，會詢問要不要把目前這個網站加進它的關聯網站。</p>
+    <ul id="list"></ul>
+    <p id="empty" class="empty" data-i18n="emptyWebsiteCredentials" hidden>密碼庫裡還沒有網站帳密</p>
+    <div class="menu-actions">
+      <div id="addButton" class="menu-action">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.5" /><path d="M8 5v6M5 8h6" /></svg>
+        <span data-i18n="addButtonLabel">新增密碼</span>
+      </div>
+      <div id="manageButton" class="menu-action">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" /></svg>
+        <span data-i18n="manageButtonLabel">管理密碼</span>
+      </div>
+      <div id="settingsButton" class="menu-action">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+        <span data-i18n="settingsButtonLabel">設定</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="addView" class="form">
+    <h1 data-i18n="addButtonLabel">新增密碼</h1>
+    <div class="field">
+      <label for="addTitle" data-i18n="fieldTitleLabel">標題</label>
+      <input id="addTitle" type="text" data-i18n-placeholder="addTitlePlaceholder" placeholder="（留白會自動帶入網站名稱）" />
+    </div>
+    <div class="field">
+      <label for="addUsername" data-i18n="fieldUsernameLabel">帳號</label>
+      <input id="addUsername" type="text" />
+    </div>
+    <div class="field">
+      <label for="addPassword" data-i18n="fieldPasswordLabel">密碼</label>
+      <div class="password-row">
+        <input id="addPassword" type="text" />
+        <button id="generateButton" class="action secondary" type="button" data-i18n="generateButtonLabel">產生</button>
+      </div>
+    </div>
+    <div class="field">
+      <label data-i18n="totpLabel">雙重驗證（TOTP）</label>
+      <!-- 已經解析出一組密鑰，存檔前先讓使用者肉眼確認 -->
+      <div id="totpPreviewRow" class="totp-row" hidden>
+        <svg viewBox="0 0 36 36" class="totp-ring" style="width: 22px; height: 22px;">
+          <circle class="totp-ring__track" cx="18" cy="18" r="16" />
+          <circle id="totpPreviewRing" class="totp-ring__progress" cx="18" cy="18" r="16" />
+        </svg>
+        <span id="totpPreviewCode" class="totp-code">------</span>
+        <button id="totpRemoveButton" class="action secondary" type="button" data-i18n="totpRemoveButton">移除</button>
+      </div>
+      <!-- 還沒設定過——只支援手動貼上，不支援 QR code 圖片上傳。Chrome 擴充功能的 popup
+           是失焦就自動關閉的浮動視窗，點 <input type="file"> 跳出原生「開啟檔案」對話框的
+           瞬間 popup 會被系統判定成失焦、整個關掉（連同它的 JS 執行環境），使用者只會看到
+           「點了沒反應」——這是 Chromium 平台本身的既有限制，不是能在這個 popup 裡修好的
+           bug，要掃 QR code 請到 FileLocker App 內的密碼庫頁面（見 CLAUDE.md 已知的坑）。 -->
+      <div id="totpSetup" class="totp-setup">
+        <input id="totpManualInput" type="text" data-i18n-placeholder="totpManualPlaceholder" placeholder="或貼上密鑰／otpauth:// 連結" />
+        <p class="hint" data-i18n="totpQrUnavailableInPopupHint">要用 QR Code 掃描設定，請到 FileLocker App 內的密碼庫頁面。</p>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button id="addCancelButton" class="action secondary" type="button" data-i18n="cancelButtonLabel">取消</button>
+      <button id="addSubmitButton" class="action primary" type="button" data-i18n="save">儲存</button>
+    </div>
+  </div>
+
+  <p id="status" class="status" hidden></p>
+  <script src="shared.js"></script>
+  <script src="title-utils.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

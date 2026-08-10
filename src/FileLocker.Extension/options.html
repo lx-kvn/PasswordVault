@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title data-i18n="optionsTitle">FileLocker 密碼庫設定</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #1f1f1f;
+      color: #fff;
+    }
+    h1 { font-size: 18px; margin: 0 0 24px; }
+    section {
+      background: #262626;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    h2 { font-size: 14px; margin: 0 0 6px; }
+    p.hint { font-size: 12.5px; color: #999; margin: 0 0 14px; line-height: 1.6; }
+    .field label { display: block; font-size: 12px; color: #999; margin-bottom: 6px; }
+    .field select,
+    .field input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #141414;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #fff;
+      font: inherit;
+      font-size: 13.5px;
+      padding: 8px 10px;
+    }
+    .field select:focus,
+    .field input:focus { outline: none; border-color: #d4a017; }
+    .field { margin-bottom: 14px; }
+    .actions { display: flex; justify-content: flex-end; }
+    button.action {
+      font: inherit;
+      font-size: 13px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background: #d4a017;
+      color: #1f1f1f;
+      font-weight: 600;
+    }
+    .status { font-size: 12.5px; color: #d4a017; margin-top: 10px; min-height: 1em; }
+  </style>
+</head>
+<body>
+  <h1 data-i18n="optionsTitle">FileLocker 密碼庫設定</h1>
+
+  <section>
+    <h2 data-i18n="languageLabel">語言</h2>
+    <div class="field">
+      <select id="languageSelect">
+        <option value="zh-TW">繁體中文</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </section>
+
+  <section>
+    <h2 data-i18n="defaultEmailSectionTitle">預設電子信箱</h2>
+    <p class="hint" data-i18n="defaultEmailHint">在偵測到的註冊表單裡，帳號／電子信箱欄位是空的時候，會建議直接選用這隻信箱。</p>
+    <div class="field">
+      <label for="defaultEmailInput" data-i18n="fieldEmailLabel">電子信箱</label>
+      <input id="defaultEmailInput" type="email" data-i18n-placeholder="emailPlaceholder" placeholder="you@example.com" />
+    </div>
+    <div class="actions">
+      <button id="saveButton" class="action" type="button" data-i18n="save">儲存</button>
+    </div>
+    <p id="status" class="status"></p>
+  </section>
+
+  <script src="shared.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "FileLocker 密碼庫",
+  "short_name": "FileLocker Password Locker",
+  "version": "0.1.0",
+  "description": "FileLocker 密碼庫瀏覽器整合：偵測已存憑證並自動填入、從既有密碼庫挑一筆重複使用。密碼與主金鑰完全不落地存在這個擴充功能裡，所有加解密都在本機的 FileLocker 應用程式裡完成。",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvnMe6a+tHkeMVF8+Kt3ckKJxxdoThq8OwWkjirXMYYr1fqmxqlxxI8eOLiSDIRVQDvU2iR07x9jQi1+nN516oh00taMkJ5sbUd/2anOEcfT8FPH3wxvpE11tyyx6yd5yAlrpmKSznyGL+ykqKMVHE66w0Qdb3Oca0twDtkW3DXMHE6NcM2C0Wvu9UwkCPR4RokhD6tIyjpjM1AZZv+re+4rq0GK4G2tpFmzhUHICAsZt9bwf7AySwHBvyK+eJd163GuZHB+Ds5yACjU0ffUGB8mx4zQt33+FXZDQPlvKt3kW7RzG0qtwb4DFIkhXN73yf5FaV9yXMaz8igDzLpEokwIDAQAB",
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "permissions": ["nativeMessaging", "activeTab", "scripting", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["shared.js", "title-utils.js", "content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FileLocker 密碼庫",
+    "default_icon": {
+      "16": "icons/16.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/48.png"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ]
+}

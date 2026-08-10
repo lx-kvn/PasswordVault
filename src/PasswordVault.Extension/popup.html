@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <title data-i18n="header">FileLocker 密碼庫</title>
+  <title data-i18n="header">PasswordVault</title>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -167,10 +167,10 @@
            是失焦就自動關閉的浮動視窗，點 <input type="file"> 跳出原生「開啟檔案」對話框的
            瞬間 popup 會被系統判定成失焦、整個關掉（連同它的 JS 執行環境），使用者只會看到
            「點了沒反應」——這是 Chromium 平台本身的既有限制，不是能在這個 popup 裡修好的
-           bug，要掃 QR code 請到 FileLocker App 內的密碼庫頁面（見 CLAUDE.md 已知的坑）。 -->
+           bug，要掃 QR code 請到 PasswordVault App 內的頁面（見 CLAUDE.md 已知的坑）。 -->
       <div id="totpSetup" class="totp-setup">
         <input id="totpManualInput" type="text" data-i18n-placeholder="totpManualPlaceholder" placeholder="或貼上密鑰／otpauth:// 連結" />
-        <p class="hint" data-i18n="totpQrUnavailableInPopupHint">要用 QR Code 掃描設定，請到 FileLocker App 內的密碼庫頁面。</p>
+        <p class="hint" data-i18n="totpQrUnavailableInPopupHint">要用 QR Code 掃描設定，請到 PasswordVault App 內的頁面。</p>
       </div>
     </div>
     <div class="form-actions">

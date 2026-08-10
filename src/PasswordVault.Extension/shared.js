@@ -11,11 +11,11 @@
 
 const FL_LOCALES = {
   'zh-TW': {
-    header: 'FileLocker 密碼庫',
+    header: 'PasswordVault',
     choosePasswordTitle: '選擇密碼',
     choosePasswordSubtitle: '從密碼庫已存的帳密裡挑一筆重複使用',
     choosePasswordHint: '從密碼庫裡挑一筆重複使用，會詢問要不要把目前這個網站加進它的關聯網站。',
-    verifying: '驗證中，請留意 FileLocker 視窗…',
+    verifying: '驗證中，請留意 PasswordVault 視窗…',
     loading: '載入中…',
     emptyWebsiteCredentials: '密碼庫裡還沒有網站帳密',
     generatePasswordTitle: '使用建議密碼',
@@ -44,8 +44,8 @@ const FL_LOCALES = {
     generateButtonLabel: '產生',
     cancelButtonLabel: '取消',
 
-    connectionFailed: '連線失敗：{message}（請確認 FileLocker 已開啟，且已完成 Native Messaging Host 設定，見擴充功能 README）',
-    cannotConnectFileLocker: '無法連上 FileLocker',
+    connectionFailed: '連線失敗：{message}（請確認 PasswordVault 已開啟，且已完成 Native Messaging Host 設定，見擴充功能 README）',
+    cannotConnectFileLocker: '無法連上 PasswordVault',
     cannotDetermineDomain: '無法判斷目前分頁的網域',
     notAssociatedWithSite: '這筆紀錄沒有關聯任何網站，無法重複使用',
     verifyFailedOrCancelled: '驗證失敗或已取消',
@@ -59,7 +59,7 @@ const FL_LOCALES = {
     loadFailed: '載入失敗：{message}',
     displayNameNotesLabel: '使用者名稱：{name}',
 
-    optionsTitle: 'FileLocker 密碼庫設定',
+    optionsTitle: 'PasswordVault 設定',
     languageLabel: '語言',
     defaultEmailSectionTitle: '預設電子信箱',
     defaultEmailHint: '在偵測到的註冊表單裡，帳號／電子信箱欄位是空的時候，會建議直接選用這隻信箱。',
@@ -73,7 +73,7 @@ const FL_LOCALES = {
     // popup 不支援 QR code 圖片上傳——Chrome 擴充功能的 popup 失焦就會自動關閉，跳出原生
     // 「開啟檔案」對話框的瞬間 popup 會被判定失焦、整個關掉，見 popup.html/popup.js 附近
     // 的說明，這是 Chromium 平台本身的限制，不是能在這個 popup 裡修好的 bug。
-    totpQrUnavailableInPopupHint: '要用 QR Code 掃描設定，請到 FileLocker App 內的密碼庫頁面。',
+    totpQrUnavailableInPopupHint: '要用 QR Code 掃描設定，請到 PasswordVault App 內的頁面。',
     totpShowButton: '顯示動態驗證碼',
     totpNotConfigured: '這筆紀錄沒有設定動態驗證碼',
     totpRevealFailed: '無法取得動態驗證碼',
@@ -81,11 +81,11 @@ const FL_LOCALES = {
     useTotpCodeSubtitle: '自動填入目前的驗證碼'
   },
   en: {
-    header: 'FileLocker Password Locker',
+    header: 'PasswordVault',
     choosePasswordTitle: 'Choose password',
     choosePasswordSubtitle: 'Reuse a credential already saved in the password locker',
     choosePasswordHint: 'Reuse a credential from your password locker. You’ll be asked whether to associate this site with it.',
-    verifying: 'Verifying, watch for the FileLocker window…',
+    verifying: 'Verifying, watch for the PasswordVault window…',
     loading: 'Loading…',
     emptyWebsiteCredentials: 'No website credentials saved yet',
     generatePasswordTitle: 'Use a suggested password',
@@ -114,8 +114,8 @@ const FL_LOCALES = {
     generateButtonLabel: 'Generate',
     cancelButtonLabel: 'Cancel',
 
-    connectionFailed: 'Connection failed: {message} (make sure FileLocker is running and the Native Messaging Host is set up — see the extension README)',
-    cannotConnectFileLocker: 'Could not connect to FileLocker',
+    connectionFailed: 'Connection failed: {message} (make sure PasswordVault is running and the Native Messaging Host is set up — see the extension README)',
+    cannotConnectFileLocker: 'Could not connect to PasswordVault',
     cannotDetermineDomain: 'Could not determine the current tab’s domain',
     notAssociatedWithSite: 'This entry isn’t associated with any site, so it can’t be reused',
     verifyFailedOrCancelled: 'Verification failed or was cancelled',
@@ -129,7 +129,7 @@ const FL_LOCALES = {
     loadFailed: 'Load failed: {message}',
     displayNameNotesLabel: 'Name: {name}',
 
-    optionsTitle: 'FileLocker Password Locker Settings',
+    optionsTitle: 'PasswordVault Settings',
     languageLabel: 'Language',
     defaultEmailSectionTitle: 'Default email',
     defaultEmailHint: 'When a detected sign-up form has an empty account/email field, this address will be suggested.',
@@ -140,7 +140,7 @@ const FL_LOCALES = {
     totpLabel: 'Two-factor authentication (TOTP)',
     totpRemoveButton: 'Remove',
     totpManualPlaceholder: 'Or paste a secret / otpauth:// link',
-    totpQrUnavailableInPopupHint: 'To set this up by scanning a QR code, use the password locker page in the FileLocker app instead.',
+    totpQrUnavailableInPopupHint: 'To set this up by scanning a QR code, use the PasswordVault app instead.',
     totpShowButton: 'Show 2FA code',
     totpNotConfigured: 'This entry doesn’t have a 2FA code set up',
     totpRevealFailed: 'Couldn’t get the 2FA code',

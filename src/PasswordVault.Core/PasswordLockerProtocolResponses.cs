@@ -1,4 +1,4 @@
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 /// <summary>
 /// 對應密碼庫的身份驗證回應——刻意跟 Core 的 PasswordLockerVerifyResult 不同形狀：

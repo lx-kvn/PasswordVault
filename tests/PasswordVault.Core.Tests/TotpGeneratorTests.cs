@@ -1,7 +1,7 @@
 using System.Text;
-using FileLocker.PasswordLocker;
+using PasswordVault.Core;
 
-namespace FileLocker.PasswordLocker.Tests;
+namespace PasswordVault.Core.Tests;
 
 /// <summary>
 /// 對照 RFC 6238 Appendix B 官方公布的測試向量——不是自己編幾組輸入輸出，而是拿公開文件裡

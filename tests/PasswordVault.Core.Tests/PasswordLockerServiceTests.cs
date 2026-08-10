@@ -1,8 +1,8 @@
-using FileLocker.Core.Models;
-using FileLocker.Core.Security;
-using FileLocker.PasswordLocker;
+using PasswordVault.Core.Models;
+using PasswordVault.Core.Security;
+using PasswordVault.Core;
 
-namespace FileLocker.PasswordLocker.Tests;
+namespace PasswordVault.Core.Tests;
 
 /// <summary>
 /// 只測密碼與恢復金鑰路徑——Passkey 相關方法牽涉真的 Windows Hello 硬體互動，跟

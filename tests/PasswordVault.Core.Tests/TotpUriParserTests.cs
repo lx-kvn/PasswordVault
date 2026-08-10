@@ -1,6 +1,6 @@
-using FileLocker.PasswordLocker;
+using PasswordVault.Core;
 
-namespace FileLocker.PasswordLocker.Tests;
+namespace PasswordVault.Core.Tests;
 
 public class TotpUriParserTests
 {

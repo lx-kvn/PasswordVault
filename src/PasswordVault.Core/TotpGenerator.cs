@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 /// <summary>
 /// TOTP（Time-based One-Time Password，RFC 6238，建構在 RFC 4226 HOTP 之上）動態驗證碼產生器

@@ -1,8 +1,8 @@
-using FileLocker.Core.Models;
-using FileLocker.Core.Security;
-using FileLocker.PasswordLocker;
+using PasswordVault.Core.Models;
+using PasswordVault.Core.Security;
+using PasswordVault.Core;
 
-namespace FileLocker.PasswordLocker.Tests;
+namespace PasswordVault.Core.Tests;
 
 /// <summary>
 /// 比照 VaultProtocolHandlersTests：驗證「解析請求 → 呼叫 Core 業務邏輯 → 組裝回應」這一層，

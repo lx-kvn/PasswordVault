@@ -1,6 +1,6 @@
-using FileLocker.Core.Models;
+using PasswordVault.Core.Models;
 
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 /// <summary>
 /// 密碼庫的「解析前端請求 → 呼叫 Core 業務邏輯 → 組裝回應」中介層，比照 VaultProtocolHandlers

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FileLocker.PluginContracts;
 
-namespace FileLocker.PasswordLocker.Tests;
+namespace PasswordVault.Core.Tests;
 
 /// <summary>
 /// 驗證 <see cref="PasswordLockerPlugin"/> 這個對外唯一入口——主體只知道「訊息名稱＋JSON 內容

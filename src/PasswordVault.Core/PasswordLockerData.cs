@@ -1,4 +1,4 @@
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 /// <summary>
 /// 對應規劃文件（FileLocker_密碼庫_功能規劃.md）：獨立於加密 Vault、資料夾防護之外的第三套

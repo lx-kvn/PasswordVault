@@ -1,7 +1,7 @@
 using System.Text.Json;
-using FileLocker.Core.Io;
+using PasswordVault.Core.Io;
 
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 /// <summary>
 /// 對應規劃文件：憑證資料獨立於 Vault 之外的本機儲存層。純粹是檔案系統存取，跟 FolderGuardStore

@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using FileLocker.Core.Crypto;
-using FileLocker.Core.Models;
-using FileLocker.Core.Security;
+using PasswordVault.Core.Crypto;
+using PasswordVault.Core.Models;
+using PasswordVault.Core.Security;
 
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 public enum PasswordStrength
 {

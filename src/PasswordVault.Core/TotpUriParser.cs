@@ -1,4 +1,4 @@
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 public record TotpUriParseResult(string Secret, string Algorithm, int Digits, int PeriodSeconds, string? Issuer, string? AccountLabel);
 

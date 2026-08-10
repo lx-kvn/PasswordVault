@@ -1,8 +1,8 @@
 using System.Text.Json;
-using FileLocker.Core.Security;
+using PasswordVault.Core.Security;
 using FileLocker.PluginContracts;
 
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 /// <summary>
 /// 可選配部件對外的唯一入口，實作 <see cref="IPasswordLockerPlugin"/>（見

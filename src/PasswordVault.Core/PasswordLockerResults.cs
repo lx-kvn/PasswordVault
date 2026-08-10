@@ -1,4 +1,4 @@
-namespace FileLocker.PasswordLocker;
+namespace PasswordVault.Core;
 
 /// <summary>
 /// 對應「密碼庫」（Password Locker）一般操作的結果，形狀比照 Core 的 FolderGuardResult

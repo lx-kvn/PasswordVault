@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace PasswordVault.App;
@@ -18,7 +19,10 @@ internal sealed class TrayIconManager : IDisposable
 
     public TrayIconManager(Action openMainWindow, Action exitApplication)
     {
-        var icon = SystemIcons.Application;
+        // 直接從執行檔本身抽出已經內嵌的圖示（ApplicationIcon 編譯時期就打包進 exe 資源），
+        // 跟 FileLocker.App.TrayIconManager 同一個做法，不用另外複製一份 .ico 檔到輸出目錄。
+        var exePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "PasswordVault.exe");
+        var icon = Icon.ExtractAssociatedIcon(exePath) ?? SystemIcons.Application;
 
         _notifyIcon = new NotifyIcon
         {

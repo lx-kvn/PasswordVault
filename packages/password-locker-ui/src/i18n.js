@@ -5,7 +5,15 @@ const LOCALES = { 'zh-TW': zhTW, en }
 
 // 找不到對應語言退回 zh-TW，再找不到就顯示 key 本身——跟 FileLocker.Web App.vue／
 // FileLocker.Extension shared.js 的既有 t() 慣例一致（見 ADR-0004：套件自帶完整翻譯表，
-// 只接受 lang prop，不需要外層透過 props 逐一傳字串進來）。
-export function t(key, lang) {
-  return LOCALES[lang]?.[key] ?? LOCALES['zh-TW'][key] ?? key
+// 只接受 lang prop，不需要外層透過 props 逐一傳字串進來）。{name} 這種花括號佔位符用來
+// 塞動態內容，簽章跟 App.vue 現有的 t(key, params) 對齊，只是這裡的第二個參數固定是
+// lang，第三個才是 params（因為套件的呼叫慣例是 t(key, lang, params)）。
+export function t(key, lang, params) {
+  let text = LOCALES[lang]?.[key] ?? LOCALES['zh-TW'][key] ?? key
+  if (params) {
+    for (const [paramKey, value] of Object.entries(params)) {
+      text = text.replaceAll(`{${paramKey}}`, value)
+    }
+  }
+  return text
 }

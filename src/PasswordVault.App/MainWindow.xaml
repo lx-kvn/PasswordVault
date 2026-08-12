@@ -1,15 +1,10 @@
 <Window x:Class="PasswordVault.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="PasswordVault" Height="480" Width="720"
         WindowStartupLocation="CenterScreen">
-    <Grid Background="#1E1F24">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock Text="PasswordVault" FontSize="28" FontWeight="Bold" Foreground="White"
-                       HorizontalAlignment="Center" Margin="0,0,0,12" />
-            <TextBlock Text="骨架階段——單一執行個體、系統匣、瀏覽器整合已經接上，前端畫面尚未串接。"
-                       FontSize="14" Foreground="#AAAAAA" HorizontalAlignment="Center"
-                       TextWrapping="Wrap" TextAlignment="Center" Width="480" />
-        </StackPanel>
+    <Grid>
+        <wv2:WebView2 x:Name="MainWebView" />
     </Grid>
 </Window>

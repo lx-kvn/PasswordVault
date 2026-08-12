@@ -135,7 +135,10 @@ public partial class App : Application
             return;
         }
 
-        var mainWindow = new MainWindow();
+        // _passwordLockerPlugin 在 OnStartup 一定先建構完成才會呼叫到 ShowMainWindow——這裡是
+        // 內建編譯期參考的元件，不是可能載入失敗的外部 dll（跟 FileLocker.App 的
+        // IPasswordLockerPlugin? 可為 null 不同），! 是合理的。
+        var mainWindow = new MainWindow(_passwordLockerPlugin!);
         MainWindow = mainWindow;
         WindowActivation.ForceToForeground(mainWindow);
     }

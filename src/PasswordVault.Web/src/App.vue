@@ -8,6 +8,18 @@ import { PasswordLockerPage } from '@lx-kvn/password-locker-ui'
 import '@lx-kvn/password-locker-ui/style.css'
 import { sendMessage, requestMessage } from './composables/useIpc.js'
 
+const pageRef = ref(null)
+
+// 把 WebView2 送進來的每一則訊息轉發給套件的 handleMessage——套件自己管一份 pendingResolvers，
+// 這裡不需要知道密碼庫有哪些訊息類型的細節（見 ADR-0004）。跟 FileLocker.Web 既有的
+// window.chrome.webview.addEventListener('message', ...) 是同一個既有模式。
+const isRunningInWebView2 = typeof window.chrome?.webview !== 'undefined'
+if (isRunningInWebView2) {
+  window.chrome.webview.addEventListener('message', (event) => {
+    pageRef.value?.handleMessage(event.data.type, event.data)
+  })
+}
+
 // TODO：語言／主題設定要接到 PasswordVault.exe 的設定檔（見 PasswordVault_獨立化_規劃.md
 // 第 15 節「設定不共享」，這輪還沒有設定頁 UI），先固定 zh-TW／light。
 const lang = 'zh-TW'
@@ -51,6 +63,7 @@ function translateError(errorCode, errorDetail, fallbackMessage) {
 
 <template>
   <PasswordLockerPage
+    ref="pageRef"
     :lang="lang"
     :theme="theme"
     :send-message="sendMessage"

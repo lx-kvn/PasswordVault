@@ -8,3 +8,7 @@
 - [ADR-0003](https://github.com/lx-kvn/FileLocker/blob/main/docs/adr/0003-passwordvault-separate-repo.md)——拆分成獨立 repo 的決策紀錄
 
 `src/FileLocker.PasswordLocker/`、`src/FileLocker.Extension/`、對應測試專案的原始碼與 commit 歷史，會用 `git filter-repo` 從 FileLocker repo 遷移過來，這份 README 會在遷移動工時一併更新。
+
+## 授權
+
+[MIT License](LICENSE)

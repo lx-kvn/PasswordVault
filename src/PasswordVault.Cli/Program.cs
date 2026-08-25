@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using System.Text;
+using PasswordVault.Cli;
 using PasswordVault.Core;
 using PasswordVault.Core.Security;
 
@@ -57,12 +57,10 @@ async Task ListCommandAsync()
 
     foreach (var entry in entries)
     {
-        Console.WriteLine($"{entry.Id}  [{entry.Category}]  {entry.Title}");
-        if (entry.AssociatedDomains.Count > 0)
+        foreach (var line in CliHelpers.FormatCredentialLines(entry))
         {
-            Console.WriteLine($"    關聯網站：{string.Join("、", entry.AssociatedDomains)}");
+            Console.WriteLine(line);
         }
-        Console.WriteLine($"    帳號：{(entry.UsernameHidden ? "（已隱藏，需驗證後查看）" : entry.Username)}");
         Console.WriteLine();
     }
 }
@@ -84,7 +82,7 @@ async Task GetCommandAsync(string id)
     // Passkey 同樣刻意不在 CLI 提供，理由跟 FileLocker.Cli 一致：WinRT KeyCredentialManager
     // 會跳出 Windows Hello 系統 UI，這是無 GUI 環境的存在意義相衝突的功能。
     Console.Write("請輸入主密碼：");
-    var password = ReadPassword();
+    var password = CliHelpers.ReadPasswordMasked();
     Console.WriteLine();
 
     var verifyResult = await service.VerifyAsync(password, IntPtr.Zero, tryPasskeyFirst: false);
@@ -113,41 +111,6 @@ async Task GetCommandAsync(string id)
         // 驗證路徑同一個既有原則。
         CryptographicOperations.ZeroMemory(verifyResult.MasterKey);
     }
-}
-
-// 主控台沒有內建的密碼遮罩輸入，做法照搬 FileLocker.Cli 既有的 ReadPassword()——標準輸入被
-// 重新導向時（腳本管線）Console.ReadKey 會直接丟例外，這裡先偵測 IsInputRedirected 退回
-// Console.ReadLine()。這不是替「非互動模式」開後門：沒有任何指令支援用這種方式跳過互動提示，
-// 單純是讓「使用者透過某種終端機模擬工具間接輸入」這種正常情境還能動，跟 --password-stdin
-// 那種「明確設計成給腳本自動化用」的機制在意圖上不同。
-string ReadPassword()
-{
-    if (Console.IsInputRedirected)
-    {
-        return Console.ReadLine() ?? "";
-    }
-
-    var password = new StringBuilder();
-    ConsoleKeyInfo key;
-
-    while ((key = Console.ReadKey(intercept: true)).Key != ConsoleKey.Enter)
-    {
-        if (key.Key == ConsoleKey.Backspace)
-        {
-            if (password.Length > 0)
-            {
-                password.Remove(password.Length - 1, 1);
-                Console.Write("\b \b");
-            }
-        }
-        else if (!char.IsControl(key.KeyChar))
-        {
-            password.Append(key.KeyChar);
-            Console.Write("*");
-        }
-    }
-
-    return password.ToString();
 }
 
 void PrintUsage()

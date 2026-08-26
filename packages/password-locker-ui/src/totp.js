@@ -136,6 +136,12 @@ export function totpSecondsRemaining(periodSeconds, nowMs = Date.now()) {
 }
 
 export function totpRingOffset(periodSeconds, nowMs = Date.now()) {
-  const remainingRatio = totpSecondsRemaining(periodSeconds, nowMs) / periodSeconds
+  // 整個圓環切成 periodSeconds 個離散刻度（30 秒週期就是 30 格），一秒只移動一次刻度，
+  // 不是跟著毫秒連續平滑縮短——四捨五入到整數秒；呼叫端的 tick 本身也是每秒才觸發一次，
+  // 用連續小數比例算出來的位置在同一秒內其實看不出差異，但取整數能確保每次一定剛好移動
+  // 一整格，搭配 CSS 的短暫 transition（見 .totp-ring__progress）才會是「一格一格接著動」
+  // 而不是像即時倒數那樣連續平滑掃過去。
+  const remainingWholeSeconds = Math.ceil(totpSecondsRemaining(periodSeconds, nowMs))
+  const remainingRatio = remainingWholeSeconds / periodSeconds
   return TOTP_RING_CIRCUMFERENCE * (1 - remainingRatio)
 }

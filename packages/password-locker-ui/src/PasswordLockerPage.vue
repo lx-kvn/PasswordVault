@@ -1101,16 +1101,16 @@ function stopPasswordLockerTotpPreview() {
 
 // 圓形倒數的 SVG style——讀取 passwordLockerTotpNowTick.value 讓這個函式在模板裡被當成
 // reactive 求值：tick 每秒更新一次，Vue 會偵測到這裡讀取了它，畫面就跟著每秒重繪一次圓環。
-// 剩餘時間 ≤ 5 秒時圓環變色提醒使用者碼快輪替。
-const TOTP_RING_WARNING_THRESHOLD_SECONDS = 5
-
+// 剩餘時間落在最後 1/3 週期時圓環變色提醒使用者碼快輪替——改成比例而不是固定秒數，
+// 這樣不同 period（例如少見的 60 秒週期）觸發警示的時機點才會跟 30 秒週期的「最後 10 秒」
+// 有一致的相對意義，不會因為 period 變長就變得太晚才提醒。
 function totpRingStyle(period) {
   const now = passwordLockerTotpNowTick.value
   const remaining = totpSecondsRemaining(period, now)
   return {
     strokeDasharray: TOTP_RING_CIRCUMFERENCE,
     strokeDashoffset: totpRingOffset(period, now),
-    stroke: remaining <= TOTP_RING_WARNING_THRESHOLD_SECONDS ? 'var(--color-danger, #b14328)' : 'var(--color-accent, #a37e2c)'
+    stroke: remaining <= period / 3 ? 'var(--color-danger, #b14328)' : 'var(--color-accent, #a37e2c)'
   }
 }
 
@@ -2598,7 +2598,7 @@ textarea.text-input {
 .table td {
   padding: 0.7rem 0.85rem;
   border-bottom: 1px solid var(--color-border, #ccc);
-  vertical-align: top;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
@@ -2615,6 +2615,25 @@ textarea.text-input {
   align-items: center;
   justify-content: flex-end;
   gap: 0.3rem;
+}
+
+/* .button--tiny 的 0.76rem 字級是給別處（產生密碼／TOTP 表單裡的次要按鈕）用的，這裡
+   （清單每一列的複製/編輯/刪除）改成跟同一列標題/帳號文字一樣的 0.85rem，只在這裡覆寫，
+   不改 .button--tiny 本身，避免牽動其他用到它的地方。
+   line-height:1 是額外补的——字級調大後，瀏覽器預設行高（中文字體的度量方式本來就跟
+   純拉丁字母不一樣，保留的字符上下空間比例不對稱）讓文字看起來往框框下方偏，跟
+   .sub-tab-bar__item 之前踩過的同一類問題（那邊是偏上，這裡是偏下，方向不同但成因一樣：
+   預設行高不等於視覺置中），固定成 1 之後交給 align-items:center 用純幾何置中，不受
+   字體行高摻進來的影響。 */
+.table__actions .button--tiny {
+  font-size: 0.85rem;
+  line-height: 1;
+  /* 使用者截圖比對過：修好置中之後，上方留白實測 6px、下方 7px——這裡不是重新猜一個
+     對稱值，而是直接在現有留白上分別加碼（上 +3px、下 +2px，兩者相加後都會是 9px），
+     跟原本 .button--tiny 共用的 0.28rem 垂直 padding 疊加，不影響其他用到 .button--tiny
+     的地方。 */
+  padding-top: calc(0.28rem + 3px);
+  padding-bottom: calc(0.28rem + 2px);
 }
 
 .cell-name {
@@ -2694,7 +2713,13 @@ textarea.text-input {
   fill: none;
   stroke-width: 3;
   stroke-linecap: round;
-  transition: stroke-dashoffset 1s linear, stroke 200ms ease-out;
+  /* 刻意比 tick 間隔（1s）短很多——每格移動要在下一次 tick 之前就已經動完、停穩，看起來
+     是「一格一格接著動」，不是連續即時倒數那種整秒平滑掃過去的效果（那個效果會需要
+     transition 時間跟 tick 間隔幾乎相等才做得到，兩者是不同的視覺設計，這裡選前者）。
+     280ms ease-out 實測感覺軟趴趴、不夠乾脆——縮短到 150ms，曲線換成前段快、尾段更快收斂
+     的 expo-out（cubic-bezier(0.16,1,0.3,1)），比對稱的 ease-out 更有「喀」一聲到位的
+     俐落感，適合這種鐘錶指針式的單格跳動，不是需要溫和收尾的一般 UI 過場動畫。 */
+  transition: stroke-dashoffset 150ms cubic-bezier(0.16, 1, 0.3, 1), stroke 200ms ease-out;
 }
 
 .totp-cell {

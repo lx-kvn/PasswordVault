@@ -19,6 +19,8 @@
   "passwordMismatch": "兩次輸入的密碼不一致",
   "setupSuccess": "密碼庫密碼設定成功",
   "credentialTitle": "密碼庫密碼／Passkey／恢復金鑰",
+  "subTabList": "帳密清單",
+  "subTabSettings": "設定",
   "settingsNotConfiguredHint": "尚未設定密碼庫密碼，請先至以下分頁完成設定：",
   "passwordSectionLabel": "密碼",
   "passkeySectionLabel": "Passkey",

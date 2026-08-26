@@ -149,6 +149,9 @@ let passwordLockerSearchDebounceTimer = null
 const passwordLockerWebsiteSort = ref('alphabetical') // 'alphabetical' | 'time'
 const passwordLockerFileSort = ref('time') // 'alphabetical' | 'time'
 const passwordLockerViewFilter = ref('all') // 'all' | 'website' | 'file'
+// 密碼庫內部小分頁：帳密清單／設定（改密碼/Passkey/恢復金鑰/CSV）——設定原本併在清單最
+// 下面，改成獨立按鈕切換到這裡，不要一直黏在清單下面。
+const activeVaultSubTab = ref('list') // 'list' | 'settings'
 // id -> 明文密碼，只存在這個元件的記憶體裡，不落地；跟後端 session 一樣沒有做「切分頁就清除」。
 const passwordLockerRevealedPasswords = ref({})
 // 哪幾筆目前是「明文顯示」狀態——跟 passwordLockerRevealedPasswords 分開：後者是「有沒有解密過」，
@@ -1468,7 +1471,10 @@ onUnmounted(() => {
     </div>
 
     <template v-else-if="passwordLockerModuleStatus === 'ok'">
-      <h1 class="page-title">{{ t('pageTitle', props.lang) }}</h1>
+      <h1 class="page-title">
+        <svg class="page-title__icon page-title__icon--vault" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="15.5" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M11 13 19.5 4.5M19.5 4.5 22 7M17 6.5 19.5 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        {{ t('pageTitle', props.lang) }}
+      </h1>
       <p class="hint-text">{{ t('pageDescription', props.lang) }}</p>
 
       <!-- 首次設定：只有密碼是新增第一筆前必須先完成的關卡，Passkey／恢復金鑰是下面
@@ -1510,6 +1516,15 @@ onUnmounted(() => {
       </section>
 
       <template v-else>
+        <!-- 帳密清單／設定兩個內部小分頁——設定（改密碼／Passkey／恢復金鑰／CSV）原本併在
+             清單最下面，改成獨立按鈕切換，不要一直黏在清單下面（重用 App.vue 已加密清單分頁
+             既有的 .sub-tab-bar 藥丸樣式，不新造一套）。 -->
+        <div class="sub-tab-bar">
+          <button type="button" class="sub-tab-bar__item" :class="{ 'is-active': activeVaultSubTab === 'list' }" @click="activeVaultSubTab = 'list'">{{ t('subTabList', props.lang) }}</button>
+          <button type="button" class="sub-tab-bar__item" :class="{ 'is-active': activeVaultSubTab === 'settings' }" @click="activeVaultSubTab = 'settings'">{{ t('subTabSettings', props.lang) }}</button>
+        </div>
+
+        <template v-if="activeVaultSubTab === 'list'">
         <!-- 選取模式下換成「取消選取／刪除選取」這兩顆按鈕。這一列固定不換行——按鈕數量在
              一般模式（3 顆）跟選取模式（2 顆）之間切換時，如果讓這一列自由換行，總寬度變化
              會讓搜尋框跟著換不換行，連帶讓整個表格跟著往上/下掉一列。篩選下拉獨立放到下一列，
@@ -1710,62 +1725,64 @@ onUnmounted(() => {
             </table>
           </div>
         </template>
+        </template>
+
+        <!-- 設定小分頁：改密碼／Passkey／恢復金鑰／CSV 匯出入，原本併在清單最下面，改成
+             獨立按鈕切換到這個小分頁，不要一直黏在清單下面（見上面 .sub-tab-bar）。 -->
+        <template v-else>
+          <section class="settings-section">
+            <h3 class="settings-section__title">{{ t('credentialTitle', props.lang) }}</h3>
+            <!-- 密碼／Passkey／恢復金鑰各自獨立一塊，用分隔線隔開——三者是各自獨立的解鎖路徑，
+                 混在同一排按鈕裡容易讓人以為彼此有關聯或互相依賴。 -->
+            <div class="settings-subsection">
+              <h4 class="settings-subsection__title">{{ t('passwordSectionLabel', props.lang) }}</h4>
+              <button class="button button--secondary" @click="openPasswordLockerChangePasswordForm" type="button">
+                {{ t('changePasswordButton', props.lang) }}
+              </button>
+            </div>
+
+            <div class="settings-subsection">
+              <h4 class="settings-subsection__title">{{ t('passkeySectionLabel', props.lang) }}</h4>
+              <div class="button-row">
+                <button class="button button--secondary" @click="setupPasswordLockerPasskeyAction" type="button">
+                  {{ passwordLockerPasskeyEnabled ? t('passkeyResetupButton', props.lang) : t('passkeySetupButton', props.lang) }}
+                </button>
+                <button v-if="passwordLockerPasskeyEnabled" class="button button--secondary" @click="disablePasswordLockerPasskeyAction" type="button">
+                  {{ t('passkeyDisableButton', props.lang) }}
+                </button>
+              </div>
+            </div>
+
+            <div class="settings-subsection">
+              <h4 class="settings-subsection__title">{{ t('recoveryKeySectionLabel', props.lang) }}</h4>
+              <div class="button-row">
+                <button class="button button--secondary" @click="setupPasswordLockerRecoveryKeyAction" type="button">
+                  {{ passwordLockerRecoveryKeyEnabled ? t('recoveryKeyResetupButton', props.lang) : t('recoveryKeySetupButton', props.lang) }}
+                </button>
+                <button v-if="passwordLockerRecoveryKeyEnabled" class="button button--secondary" @click="disablePasswordLockerRecoveryKeyAction" type="button">
+                  {{ t('recoveryKeyDisableButton', props.lang) }}
+                </button>
+              </div>
+            </div>
+
+            <div class="settings-subsection">
+              <h4 class="settings-subsection__title">{{ t('csvSectionLabel', props.lang) }}</h4>
+              <div class="button-row">
+                <button class="button button--secondary" @click="importPasswordLockerCsvAction" type="button">{{ t('importCsvButton', props.lang) }}</button>
+                <button class="button button--secondary" @click="exportPasswordLockerCsvAction" type="button">{{ t('exportCsvButton', props.lang) }}</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 解除安裝部件是危險操作，移進設定小分頁裡，不要在帳密清單這個第一畫面就出現。 -->
+          <section class="settings-section">
+            <h4 class="settings-subsection__title">{{ t('moduleManagementSectionLabel', props.lang) }}</h4>
+            <button class="button button--danger" @click="uninstallPasswordLockerModuleAction" type="button">
+              {{ t('uninstallModuleButton', props.lang) }}
+            </button>
+          </section>
+        </template>
       </template>
-
-      <!-- 帳密管理子區塊：改密碼／Passkey／恢復金鑰／CSV 匯出入，原本在 App.vue 是「設定」
-           分頁的獨立小節。這個套件沒有多分頁殼層，併到同一頁最下面（見檔案開頭註解）。 -->
-      <section v-if="passwordLockerConfigured" class="settings-section">
-        <h3 class="settings-section__title">{{ t('credentialTitle', props.lang) }}</h3>
-        <!-- 密碼／Passkey／恢復金鑰各自獨立一塊，用分隔線隔開——三者是各自獨立的解鎖路徑，
-             混在同一排按鈕裡容易讓人以為彼此有關聯或互相依賴。 -->
-        <div class="settings-subsection">
-          <h4 class="settings-subsection__title">{{ t('passwordSectionLabel', props.lang) }}</h4>
-          <button class="button button--secondary" @click="openPasswordLockerChangePasswordForm" type="button">
-            {{ t('changePasswordButton', props.lang) }}
-          </button>
-        </div>
-
-        <div class="settings-subsection">
-          <h4 class="settings-subsection__title">{{ t('passkeySectionLabel', props.lang) }}</h4>
-          <div class="button-row">
-            <button class="button button--secondary" @click="setupPasswordLockerPasskeyAction" type="button">
-              {{ passwordLockerPasskeyEnabled ? t('passkeyResetupButton', props.lang) : t('passkeySetupButton', props.lang) }}
-            </button>
-            <button v-if="passwordLockerPasskeyEnabled" class="button button--secondary" @click="disablePasswordLockerPasskeyAction" type="button">
-              {{ t('passkeyDisableButton', props.lang) }}
-            </button>
-          </div>
-        </div>
-
-        <div class="settings-subsection">
-          <h4 class="settings-subsection__title">{{ t('recoveryKeySectionLabel', props.lang) }}</h4>
-          <div class="button-row">
-            <button class="button button--secondary" @click="setupPasswordLockerRecoveryKeyAction" type="button">
-              {{ passwordLockerRecoveryKeyEnabled ? t('recoveryKeyResetupButton', props.lang) : t('recoveryKeySetupButton', props.lang) }}
-            </button>
-            <button v-if="passwordLockerRecoveryKeyEnabled" class="button button--secondary" @click="disablePasswordLockerRecoveryKeyAction" type="button">
-              {{ t('recoveryKeyDisableButton', props.lang) }}
-            </button>
-          </div>
-        </div>
-
-        <div class="settings-subsection">
-          <h4 class="settings-subsection__title">{{ t('csvSectionLabel', props.lang) }}</h4>
-          <div class="button-row">
-            <button class="button button--secondary" @click="importPasswordLockerCsvAction" type="button">{{ t('importCsvButton', props.lang) }}</button>
-            <button class="button button--secondary" @click="exportPasswordLockerCsvAction" type="button">{{ t('exportCsvButton', props.lang) }}</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 這個子區塊不受 passwordLockerConfigured 限制——解除安裝的是部件本身，跟使用者
-           有沒有設定過密碼庫密碼是兩件事，只要部件已安裝（狀態是 'ok'）就該看得到。 -->
-      <section class="settings-section">
-        <h4 class="settings-subsection__title">{{ t('moduleManagementSectionLabel', props.lang) }}</h4>
-        <button class="button button--danger" @click="uninstallPasswordLockerModuleAction" type="button">
-          {{ t('uninstallModuleButton', props.lang) }}
-        </button>
-      </section>
     </template>
 
     <!-- 密碼庫自己的簡化版密碼提示彈窗（停用 Passkey／停用恢復金鑰用）。 -->
@@ -2150,19 +2167,42 @@ onUnmounted(() => {
    （全新專案，沒有 FileLocker 那套現成主題 CSS）不提供也能看到合理的預設樣式。
    只有顏色相關的屬性走 var(--x, fallback)，圓角/陰影/字級等維持原本 App.vue 的字面值——
    跟這個檔案原本（尚未搬移主畫面前）就定下的慣例一致。 */
+/* 這個元件刻意不自己加外層 padding——頁面留白是「host 版面」的責任，不是元件內容的責任。
+   FileLocker.Web 的 .page 容器本來就有 padding: 2rem 2.5rem 3rem，元件這裡如果自己再加一層
+   padding 會疊加成兩倍留白（密碼庫標題上方那段異常空白就是這樣來的）。PasswordVault.Web
+   沒有這種 host 版面容器，改成由它自己的 App.vue 補一層對等的 padding（見該檔案）。 */
 .password-locker-page {
-  padding: 2rem;
-  color: var(--color-text-primary, #1a1a1a);
-  font-family: var(--font-family-base, system-ui, sans-serif);
+  color: var(--color-text, #1a1a1a);
+  font-family: var(--font-ui, system-ui, sans-serif);
   text-align: left;
 }
 
+/* 字級是 0.875rem，不是看起來「應該」對應的 1.375rem——這是刻意配合 App.vue 那邊修好的
+   既有 bug 之後的結果：App.vue 全域有一條 .app h1 { font-size:inherit } 優先權比單純
+   .page-title 高，一直悄悄蓋掉全部六個分頁標題原本寫的 1.375rem，六個分頁多年來實際顯示
+   的都是繼承算出來的 0.875rem。這裡故意跟著用一樣的「實際顯示值」而不是「原始碼寫的
+   值」，兩邊才會長得一樣（見 App.vue 同一個 class 上的說明）。 */
 .password-locker-page__title,
 .page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-accent, #a37e2c);
-  margin: 0 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 0 1.75rem;
+  color: var(--color-text, #1a1a1a);
+  text-align: left;
+}
+
+/* SVG 本身沒有內建尺寸限制，不加寬高的話會撐到瀏覽器預設的 300x150 甚至更大——這裡固定
+   跟文字同高（用 em 而不是 px，字級變動時圖示跟著縮放），flex-shrink:0 避免標題文字擠壓
+   到圖示本身變形。 */
+.page-title__icon {
+  width: 1.35em;
+  height: 1.35em;
+  flex-shrink: 0;
 }
 
 .password-locker-page__body {
@@ -2205,7 +2245,7 @@ onUnmounted(() => {
   font-size: 1.15rem;
   font-weight: 700;
   margin: 0 0 0.5rem;
-  color: var(--color-text-primary, #1a1a1a);
+  color: var(--color-text, #1a1a1a);
 }
 
 .modal__subtitle {
@@ -2234,7 +2274,7 @@ onUnmounted(() => {
   width: 100%;
   font-family: inherit;
   font-size: 0.95rem;
-  color: var(--color-text-primary, #1a1a1a);
+  color: var(--color-text, #1a1a1a);
   background: var(--color-surface, #fff);
   padding: 0.55rem 2.5rem 0.55rem 0.75rem;
   border-radius: 8px;
@@ -2252,7 +2292,7 @@ onUnmounted(() => {
 }
 
 .text-input--mono {
-  font-family: var(--font-family-mono, 'Consolas', 'Cascadia Code', monospace);
+  font-family: var(--font-mono, 'Consolas', 'Cascadia Code', monospace);
   font-size: 0.85rem;
 }
 
@@ -2300,7 +2340,7 @@ textarea.text-input {
   align-items: flex-start;
   gap: 0.55rem;
   font-size: 0.875rem;
-  color: var(--color-text-primary, #1a1a1a);
+  color: var(--color-text, #1a1a1a);
   cursor: pointer;
   line-height: 1.5;
 }
@@ -2323,17 +2363,40 @@ textarea.text-input {
 }
 
 .button {
-  padding: 0.5rem 1.1rem;
-  border-radius: 8px;
-  border: none;
-  font-size: 0.9rem;
+  /* App.vue 真正的 .button 是用 inline-flex + align-items:center 置中文字，不是單純
+     padding——這才是文字上下留白不對稱（實測上方 18px、下方 16px）的真正原因：瀏覽器對
+     inline/block 元素內文字的置中方式本來就會被字體 ascent/descent 影響，flex 置中才是
+     不管字體都準的做法。同時這樣按鈕高度才會跟 .text-input／.select-input 這些用同一種
+     置中邏輯的欄位對齊。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: background var(--duration-fast, 150ms) var(--ease-out, ease-out),
+    border-color var(--duration-fast, 150ms) var(--ease-out, ease-out),
+    opacity var(--duration-fast, 150ms) var(--ease-out, ease-out),
+    transform var(--duration-fast, 150ms) var(--ease-out, ease-out);
+}
+
+.button:active {
+  transform: scale(0.97);
 }
 
 .button--primary {
   background: var(--color-accent, #a37e2c);
   color: #fff;
+  box-shadow: var(--shadow-xs, none);
+}
+
+.button--primary:hover {
+  background: var(--color-accent-hover, #8c630c);
 }
 
 .button--primary:disabled {
@@ -2342,8 +2405,14 @@ textarea.text-input {
 }
 
 .button--secondary {
-  background: var(--color-surface-secondary, #eee);
-  color: var(--color-text-primary, #1a1a1a);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #1a1a1a);
+  border-color: var(--color-border-strong, #ccc);
+}
+
+.button--secondary:hover {
+  border-color: var(--color-accent, #a37e2c);
+  color: var(--color-accent, #a37e2c);
 }
 
 .button--danger {
@@ -2351,9 +2420,52 @@ textarea.text-input {
   color: #fff;
 }
 
+.button--danger:hover {
+  background: #96351f;
+}
+
 .button--tiny {
   font-size: 0.76rem;
   padding: 0.28rem 0.5rem;
+  background: var(--color-surface, #fff);
+  color: var(--color-text-secondary, #666);
+  border-color: var(--color-border, #ccc);
+}
+
+.button--tiny:hover {
+  border-color: var(--color-accent, #a37e2c);
+  color: var(--color-accent, #a37e2c);
+}
+
+/* 密碼庫內部小分頁（帳密清單／設定）——照抄 App.vue 已加密清單分頁既有的 .sub-tab-bar
+   藥丸樣式，不新造一套，維持跟其他分頁一致的內部分頁視覺語言。 */
+.sub-tab-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.sub-tab-bar__item {
+  appearance: none;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  /* 照抄 App.vue 既有 .sub-tab-bar__item 的既有修正：line-height:1 讓藥丸按鈕文字上下
+     留白對稱，不然瀏覽器預設 line-height 會讓文字看起來偏上（實測上方比下方多 2px）。 */
+  line-height: 1;
+  border: 1px solid var(--color-border-strong, #ccc);
+  background: var(--color-surface, #fff);
+  color: var(--color-text-secondary, #666);
+  border-radius: 999px;
+  padding: calc(0.35rem + 2px) 0.85rem;
+  cursor: pointer;
+}
+
+.sub-tab-bar__item.is-active {
+  background: var(--color-accent-soft, #f5e9d3);
+  border-color: var(--color-accent-border, #e4c77e);
+  color: var(--color-accent, #a37e2c);
 }
 
 .link-button {
@@ -2384,21 +2496,23 @@ textarea.text-input {
 }
 
 .settings-section {
-  margin: 1.75rem 0;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--color-border, #ccc);
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--color-border, #ccc);
   text-align: left;
 }
 
-.settings-section:first-of-type {
-  margin-top: 0.5rem;
+.settings-section:last-of-type {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .settings-section__title {
   font-size: 1.08rem;
   font-weight: 700;
   margin: 0 0 0.65rem;
-  color: var(--color-text-primary, #1a1a1a);
+  color: var(--color-text, #1a1a1a);
 }
 
 /* 密碼／Passkey／恢復金鑰／CSV 各自獨立一塊，用分隔線隔開——三者是各自獨立的解鎖路徑，
@@ -2441,7 +2555,7 @@ textarea.text-input {
   padding: 14px;
   box-sizing: content-box;
   border-radius: 999px;
-  background: var(--color-surface-secondary, #eee);
+  background: var(--color-bg, #eee);
   color: var(--color-accent, #a37e2c);
   margin-bottom: 0.85rem;
 }
@@ -2459,7 +2573,7 @@ textarea.text-input {
 
 .table-scroll {
   overflow-x: auto;
-  border-radius: 10px;
+  border-radius: var(--radius-md, 10px);
 }
 
 .table {
@@ -2473,7 +2587,7 @@ textarea.text-input {
 .table th {
   text-align: left;
   font-weight: 500;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-tertiary, #666);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2490,6 +2604,10 @@ textarea.text-input {
 
 .table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.table tbody tr:hover td {
+  background: var(--color-bg, #f5f5f5);
 }
 
 .table__actions {
@@ -2529,7 +2647,7 @@ textarea.text-input {
 }
 
 .table__row--clickable:hover {
-  background: var(--color-surface-secondary, #eee);
+  background: var(--color-bg, #f5f5f5);
 }
 
 /* 表單裡的關聯網域標籤。 */
@@ -2539,7 +2657,7 @@ textarea.text-input {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--color-surface-secondary, #eee);
+  background: var(--color-surface, #fff);
   color: var(--color-accent, #a37e2c);
   font-size: 0.8rem;
 }
@@ -2614,7 +2732,7 @@ textarea.text-input {
 }
 
 .totp-preview__code {
-  font-family: var(--font-family-mono, 'Consolas', 'Cascadia Code', monospace);
+  font-family: var(--font-mono, 'Consolas', 'Cascadia Code', monospace);
   font-size: 1.1rem;
   letter-spacing: 0.08em;
   font-weight: 600;

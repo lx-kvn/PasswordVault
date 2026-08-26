@@ -62,16 +62,18 @@ function translateError(errorCode, errorDetail, fallbackMessage) {
 </script>
 
 <template>
-  <PasswordLockerPage
-    ref="pageRef"
-    :lang="lang"
-    :theme="theme"
-    :send-message="sendMessage"
-    :request-message="requestMessage"
-    :show-toast="showToast"
-    :ask-confirm="askConfirm"
-    :translate-error="translateError"
-  />
+  <div class="page">
+    <PasswordLockerPage
+      ref="pageRef"
+      :lang="lang"
+      :theme="theme"
+      :send-message="sendMessage"
+      :request-message="requestMessage"
+      :show-toast="showToast"
+      :ask-confirm="askConfirm"
+      :translate-error="translateError"
+    />
+  </div>
 
   <div class="toast-stack">
     <div v-for="toast in toasts" :key="toast.id" class="toast" :class="`toast--${toast.kind}`">
@@ -91,6 +93,12 @@ function translateError(errorCode, errorDetail, fallbackMessage) {
 </template>
 
 <style scoped>
+/* 密碼庫元件本身不帶外層 padding（見 @lx-kvn/password-locker-ui 的說明——那是 host 版面的
+   責任），這裡補上跟 FileLocker.Web 的 .page 容器對等的留白，兩邊視覺留白才一致。 */
+.page {
+  padding: 2rem 2.5rem 3rem;
+}
+
 .toast-stack {
   position: fixed;
   right: 1rem;

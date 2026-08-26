@@ -19,6 +19,8 @@
   "passwordMismatch": "Passwords do not match",
   "setupSuccess": "Password Locker password set successfully",
   "credentialTitle": "Password Locker Password / Passkey / Recovery Key",
+  "subTabList": "Credentials",
+  "subTabSettings": "Settings",
   "settingsNotConfiguredHint": "Password Locker password hasn't been set up yet — finish setup on this tab first:",
   "passwordSectionLabel": "Password",
   "passkeySectionLabel": "Passkey",

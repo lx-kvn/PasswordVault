@@ -2175,6 +2175,19 @@ onUnmounted(() => {
   color: var(--color-text, #1a1a1a);
   font-family: var(--font-ui, system-ui, sans-serif);
   text-align: left;
+  /* 使用者回饋：雙擊畫面上任何文字（顯示用的內文、按鈕上的字）都會被選取，網頁預設
+     行為在桌面應用程式裡容易讓人誤觸——整頁預設關掉文字選取。輸入框／文字區域跟真正
+     需要複製的敏感內容（單筆密碼、手動點開的使用者名稱、恢復金鑰文字區，見下面那條
+     例外規則）另外開回來，不能一刀切連這些使用者需要複製的值也選不到。 */
+  user-select: none;
+}
+
+.password-locker-page input,
+.password-locker-page textarea,
+.password-locker-page [contenteditable='true'],
+.password-locker-page .text-input--mono,
+.password-locker-page .cell-clickable {
+  user-select: text;
 }
 
 /* 字級是 0.875rem，不是看起來「應該」對應的 1.375rem——這是刻意配合 App.vue 那邊修好的

@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 密碼庫功能從 FileLocker repo 獨立出來的產品。架構決策與理由記錄在 FileLocker repo 的
-[`PasswordVault_獨立化_規劃.md`](https://github.com/lx-kvn/FileLocker/blob/main/PasswordVault_獨立化_規劃.md)
+[`PasswordVault_獨立化_規劃.md`](https://github.com/lx-kvn/FileLocker/blob/main/docs/specs/features/PasswordVault_獨立化_規劃.md)
 與 [ADR-0003](https://github.com/lx-kvn/FileLocker/blob/main/docs/adr/0003-passwordvault-separate-repo.md)。
 
 ## 建置與驗證

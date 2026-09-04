@@ -21,7 +21,6 @@
 
 ## 尚未完成
 
-- **PasswordVault 自己的 Native Messaging Host 登錄機制還沒實作**：目前只有 `FileLocker.App` 那一側會寫登錄檔／manifest，只裝 `PasswordVault.exe`、不裝 `FileLocker.App` 的使用者，瀏覽器擴充功能實際上連不上任何東西（見 `PasswordVault_獨立化_規劃.md` 第 8.1 節「待辦事項」）。
 - **PasswordVault 的 Release 打包流程還沒能真正產出符合資產命名規則的 zip**：FileLocker.App 從 `lx-kvn/PasswordVault` Release 自動下載、切換部件生效這條路徑，目前只驗證到程式碼層級，還沒有機會人工實測。
 
 ## 建置與測試

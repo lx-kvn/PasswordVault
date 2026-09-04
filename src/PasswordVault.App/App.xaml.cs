@@ -83,11 +83,12 @@ public partial class App : Application
             // 固定回傳 false——不影響一般網站帳密憑證的任何功能。
             vaultItemExists: _ => false));
 
-        // 誰先啟動就負責把轉接程式複製到跟 FileLocker.App 共用的位置，Pipe Server 的
-        // expectedClientExePath 也跟著指向那個共用路徑，不再各自認自己安裝資料夾裡的那份
-        // （見 PasswordVaultNativeHostSync 開頭的說明、FileLocker repo
-        // PasswordVault_獨立化_規劃.md 第 8.1 節）。
-        PasswordVaultNativeHostSync.EnsureCopiedFrom(AppContext.BaseDirectory);
+        // 把轉接程式放到跟 FileLocker.App 共用的位置、寫入瀏覽器查得到的 manifest 與登錄
+        // 機碼，Pipe Server 的 expectedClientExePath 也指向那個共用路徑，不再各自認自己安裝
+        // 資料夾裡的那份（見 PasswordVaultNativeHostSync 開頭的說明、FileLocker repo
+        // PasswordVault_獨立化_規劃.md 第 8.1 節）。登錄機碼這一半原本只有 FileLocker.App
+        // 那側會寫，只裝 PasswordVault 的使用者因此完全連不上瀏覽器擴充功能。
+        PasswordVaultNativeHostSync.EnsureRegistered(AppContext.BaseDirectory);
         _passwordLockerPipeServer = new PasswordVaultNativePipeServer(
             () => _passwordLockerPlugin,
             RequestBrowserVerificationAsync,

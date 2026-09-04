@@ -4,12 +4,14 @@
 Named Pipe——見 PasswordVault_獨立化_規劃.md 第 8 節「共存」）、實際驗證/加解密的宿主程式搭配
 使用。這個目錄本身不是一個 npm/build 專案——純 JS + 靜態 `manifest.json`，不需要任何建置步驟。
 
-**目前狀態**：這份文件是從 FileLocker repo 遷移過來時原樣保留技術細節、只換掉品牌文字的版本，
-以下步驟裡提到的 Native Messaging Host 註冊流程（`PasswordLockerNativeHostRegistrar`、
-`plugins/PasswordLocker/` 路徑）目前仍然只存在於 FileLocker.App 那一側——**PasswordVault.exe
-自己的 Native Messaging Host 相對應實作還沒開始寫**（見 PasswordVault_獨立化_規劃.md 第 8 節，
-這是明確排除在這次 `git filter-repo` 遷移範圍之外、需要另外從零開始的一塊）。在那塊完成之前，
-只裝 PasswordVault.exe、不裝 FileLocker.App 的使用者，這個擴充功能實際上連不上任何東西。
+**目前狀態**：`PasswordVault.exe` 已經有自己的 Native Messaging Host 註冊邏輯
+（`PasswordVaultNativeHostSync`，2026-09-04 補上），只裝 PasswordVault、不裝 FileLocker 的
+使用者也能用這個擴充功能。兩邊都會寫同一組登錄機碼，協調方式是「讓兩邊寫出來的內容逐位元組
+相同」而不是約定誰讓誰——內容相同的話，「最後寫的贏」就不再有任何影響。細節與理由見
+FileLocker repo 的 PasswordVault_獨立化_規劃.md 第 8.2 節。
+
+manifest 與轉接程式都放在兩邊共用的 `%LocalAppData%\PasswordVault\NativeHost\`，不在任何一邊
+自己的安裝資料夾底下。
 
 ## 本機測試（開發人員模式，尚未上架 Chrome 線上應用程式商店）
 
@@ -21,10 +23,11 @@ Named Pipe——見 PasswordVault_獨立化_規劃.md 第 8 節「共存」）�
 
 1. Chrome 網址列輸入 `chrome://extensions`，右上角開啟「開發人員模式」。
 2. 「載入未封裝項目」，選這個資料夾（`src/PasswordVault.Extension`）。
-3. 重新啟動 FileLocker（或觸發一次密碼庫部件重新載入），確認
-   `%LocalAppData%\FileLocker\NativeMessagingHost\com.filelocker.passwordlocker.json` 有被建立/
+3. 重新啟動 PasswordVault 或 FileLocker（兩邊都會寫，內容相同），確認
+   `%LocalAppData%\PasswordVault\NativeHost\com.filelocker.passwordlocker.json` 有被建立/
    更新，且 `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.filelocker.passwordlocker`
-   指向這個檔案。
+   指向這個檔案。舊版本把這份 manifest 寫在 `%LocalAppData%\FileLocker\NativeMessagingHost\`，
+   新版的 FileLocker 啟動時會把那份殘留清掉——排查時看到舊路徑沒有檔案是正常的。
 4. 找一個有登入表單、且密碼庫裡已經存過對應網域憑證的網站測試自動填入；用擴充功能圖示的「選擇密碼」
    測試沒有已存憑證時挑一筆重複使用的流程。
 

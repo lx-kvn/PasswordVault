@@ -2,7 +2,7 @@
 
 獨立的密碼管理應用程式，不依賴其他軟體單獨運作。核心邏輯（`PasswordVault.Core`）與桌面應用程式（`PasswordVault.exe`，含內建 CLI）皆遷出自 [FileLocker](https://github.com/lx-kvn/FileLocker) 的密碼庫（Password Locker）功能。
 
-**目前狀態：程式碼遷移、品牌改名、測試補齊、FileLocker 消費端切換（程式碼層級）皆已完成；尚缺 PasswordVault 自己的 Release 打包與瀏覽器整合的登錄機制。** 架構決策與理由記錄在 FileLocker repo 的以下文件：
+**目前狀態：程式碼遷移、品牌改名、測試補齊、FileLocker 消費端切換（程式碼層級）、瀏覽器整合的登錄機制皆已完成；尚缺 PasswordVault 自己的 Release 打包，桌面宿主本身也仍在骨架階段（見下方「尚未完成」）。** 架構決策與理由記錄在 FileLocker repo 的以下文件：
 
 - [`PasswordVault_獨立化_規劃.md`](https://github.com/lx-kvn/FileLocker/blob/main/docs/specs/features/PasswordVault_獨立化_規劃.md)——完整規劃文件
 - [ADR-0003](https://github.com/lx-kvn/FileLocker/blob/main/docs/adr/0003-passwordvault-separate-repo.md)——拆分成獨立 repo 的決策紀錄
@@ -22,6 +22,10 @@
 ## 尚未完成
 
 - **PasswordVault 的 Release 打包流程還沒能真正產出符合資產命名規則的 zip**：FileLocker.App 從 `lx-kvn/PasswordVault` Release 自動下載、切換部件生效這條路徑，目前只驗證到程式碼層級，還沒有機會人工實測。
+- **桌面宿主仍是骨架階段**（見 `PasswordVault_獨立化_規劃.md` 第 14 節），以下幾塊尚未接上：
+  - 瀏覽器擴充功能觸發、但密碼庫尚未通過驗證時的**驗證彈窗**（比照 FileLocker.App 的 `PasswordLockerBrowserVerifyWindow`）——目前固定回傳「無法驗證」，因此擴充功能在密碼庫未解鎖的狀態下實際上用不了。
+  - **「已加密檔案」憑證的關聯顯示**：需要偵測 FileLocker 主體是否也裝在同一台機器上（見規劃文件第 6 節），該偵測邏輯尚未實作，目前固定視為不存在。不影響一般網站帳密憑證的任何功能。
+  - **系統匣右鍵選單**僅有最基本的項目。
 
 ## 建置與測試
 

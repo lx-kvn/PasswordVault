@@ -32,13 +32,9 @@ PasswordVault_v{這次版本}_for-FileLocker-{相容最小版本}-to-{相容最�
 ```
 
 （見規劃文件「資產命名規則」小節）——相容區間需要對照 `vendor/README.md` 記錄的
-`FileLocker.PluginContracts.dll` 最後一次更新時間點手動決定，不是自動算出來的。
-
-**但這一步目前還沒有真的跑通過**：從來沒有產出過符合命名規則的 zip，所以整條「FileLocker 自動
-下載並載入部件」的路徑只驗證到程式碼層級。在跑通之前，這個 skill 的步驟 8 只涵蓋 GUI 安裝程式。
-真正要做這件事時，照
-`docs/specs/features/PasswordVault_Release打包_待辦.md` 走，並在跑通之後把實際步驟（含踩到的坑）
-補進這份 SKILL.md 的步驟 8——**寫進去的必須是實際做過、驗證過的那條路徑，不是想像中的流程**。
+`FileLocker.PluginContracts.dll` 最後一次更新時間點手動決定，不是自動算出來的，每次發布都要跟
+使用者確認上限要填到哪一版。實際的打包步驟見步驟 9，定案理由見
+`docs/specs/features/PasswordVault_Release打包.md`。
 
 ## 步驟
 
@@ -67,16 +63,47 @@ PasswordVault_v{這次版本}_for-FileLocker-{相容最小版本}-to-{相容最�
    機器上執行前要先確認仍然正確（跟 FileLocker 那邊同樣的絕對路徑限制）。
    `no_admin_install` 模式打包出來的安裝檔裝到 `%LOCALAPPDATA%\Programs\PasswordVault\`，不需要系統
    管理員權限。
-9. **建立 GitHub Release**：先 `gh release list --repo lx-kvn/PasswordVault` 確認這個版本還沒發布過。
-   沒發布過的話，把要跑的指令（大致是 `gh release create vX.Y.Z <安裝檔路徑> --title "PasswordVault vX.Y.Z" --notes-file docs/releases/vX.Y.Z.md`）
-   列出來給使用者看過、明確同意後才執行——不能自己直接發布。
+9. **打包給 FileLocker 消費的相容性 zip**：先跟使用者確認相容區間（下限是第一個認得目前這套資產
+   命名規則的 FileLocker 版本，`2.1.0`；上限預設填當時最新的 FileLocker 正式版，但要問過——只標
+   下限表達不了「太新也不相容」）。八個檔案全部從 **`src/PasswordVault.App` 的建置輸出**抓，攤平
+   放在 zip 根目錄，不要多包一層資料夾：
+
+   ```bash
+   SRC=src/PasswordVault.App/bin/Release/net10.0-windows10.0.19041.0
+   mkdir -p dist/passwordlocker-module
+   cp $SRC/{PasswordVault.Core.dll,Konscious.Security.Cryptography.Argon2.dll,Konscious.Security.Cryptography.Blake2.dll,PasswordVault.NativeHost.exe,PasswordVault.NativeHost.dll,PasswordVault.NativeHost.deps.json,PasswordVault.NativeHost.runtimeconfig.json,extension-id.txt} dist/passwordlocker-module/
+   ```
+
+   然後用 `Compress-Archive -Path 'dist/passwordlocker-module/*'` 壓成
+   `PasswordVault_vX.Y.Z_for-FileLocker-<min>-to-<max>.zip`（`dist/` 已被 git 忽略）。
+
+   幾個實際踩過、光看程式碼不會發現的地方：
+
+   - **來源一定要是 PasswordVault.App 的輸出，不能是 PasswordVault.Core 的**：Library 專案的建置
+     輸出不含攤平的相依組件，那裡沒有 Konscious 兩個檔。
+   - **不放 `PasswordVault.Core.deps.json`**：相依組件跟 `PasswordVault.Core.dll` 同一個資料夾時，
+     載入器的解析機制直接就掃得到；而建置產出的那份 deps.json 內容指向 NuGet 快取路徑，在使用者
+     機器上不存在，放了也沒作用。
+   - **不放 `FileLocker.PluginContracts.dll`**：載入器對這個組件名強制退回宿主那一份，帶了不會有
+     作用，只會讓後續維護者誤以為它有用（見 `vendor/README.md`）。
+   - **漏檔不會當場報錯**：FileLocker 本體自己也帶著同名的 Konscious 組件，少放時載入器會安靜改用
+     宿主那一份，表面上一切正常，直到兩邊版本不一致才出事。所以不要靠「裝起來能用」判斷有沒有
+     漏檔，靠 `PasswordLockerModulePackagingTests` 的清單斷言。
+
+10. **建立 GitHub Release**：先 `gh release list --repo lx-kvn/PasswordVault` 確認這個版本還沒發布過。
+    沒發布過的話，把要跑的指令（大致是 `gh release create vX.Y.Z <安裝檔路徑> <相容性zip路徑> --title "PasswordVault vX.Y.Z" --notes-file docs/releases/vX.Y.Z.md`）
+    列出來給使用者看過、明確同意後才執行——不能自己直接發布。**兩個檔案要一起掛上去**：使用者按
+    「安裝密碼庫」時 FileLocker 打的是 `releases/latest`，而那個查詢不含草稿與預發行版本，所以
+    latest 少了相容性 zip 就等於所有人都裝不了部件。
+11. **確認 CI 的「驗證已發布的部件 zip」工作有過**：那個工作會去抓 `releases/latest` 的資產、解壓、
+    載入、建一次主密碼，是唯一會驗到「線上那包真的能用」的地方。它紅了就代表使用者現在裝不起來，
+    要當成發布還沒完成來處理。
 
 ## 不做的事
 
 - 不自動打 tag、不自動 push——一律先問。
 - 不用 `gh release create` 未經確認就直接發布——一律先列出指令給使用者看過同意。
 - 不把 Release Notes 拆成分開的中英文檔案。
-- 不打包給 FileLocker 消費的相容性 zip——那條流程還沒跑通過，見上方「額外要注意」段落。跑通並把
-  步驟補進這份 SKILL.md 之後，這一條要刪掉。
+- 不自動決定相容區間的上限——每次發布都問過使用者。
 
 需要確認的只有這三件事：打 tag、push、建立 GitHub Release。打包安裝程式不用問，直接執行。

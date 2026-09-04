@@ -30,7 +30,11 @@
 
 ## 建置與測試
 
+全新 clone 之後要先備妥前端：共用元件套件 `@lx-kvn/password-locker-ui` 編出來的 `dist/` 沒有進版控，而 `PasswordVault.Web` 是靠 npm workspace 連到本地那份，少了它 Release 建置會停在「解析不到 @lx-kvn/password-locker-ui」。
+
 ```bash
+npm ci
+npm run build --workspace @lx-kvn/password-locker-ui
 dotnet test PasswordVault.slnx
 ```
 

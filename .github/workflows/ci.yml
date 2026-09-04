@@ -27,6 +27,12 @@ jobs:
       - name: 安裝前端相依套件
         run: npm ci
 
+      # 共用元件套件的 dist/ 被 git 忽略，全新 clone 一定沒有它，而 PasswordVault.Web 是靠
+      # workspace 連到本地那份（見 FileLocker repo 的 ADR-0004）。少了這步前端建置會直接卡在
+      # 「解析不到 @lx-kvn/password-locker-ui」。
+      - name: 建置共用 UI 套件
+        run: npm run build --workspace @lx-kvn/password-locker-ui
+
       - name: 跑完整測試套件
         run: dotnet test PasswordVault.slnx -c Release
 
@@ -52,6 +58,12 @@ jobs:
 
       - name: 安裝前端相依套件
         run: npm ci
+
+      # 共用元件套件的 dist/ 被 git 忽略，全新 clone 一定沒有它，而 PasswordVault.Web 是靠
+      # workspace 連到本地那份（見 FileLocker repo 的 ADR-0004）。少了這步前端建置會直接卡在
+      # 「解析不到 @lx-kvn/password-locker-ui」。
+      - name: 建置共用 UI 套件
+        run: npm run build --workspace @lx-kvn/password-locker-ui
 
       - name: 下載 releases/latest 裡的部件 zip
         shell: pwsh

@@ -1,0 +1,84 @@
+name: CI
+
+# Release 組態的建置會跑 npm run build 打包前端（見 PasswordVault.App.csproj 的
+# BuildWebFrontend），所以每個工作都要先備妥 Node 再備妥 .NET，順序不能反。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: 建置與測試
+    # 這個專案是 WPF + 登錄檔 + Named Pipe，只跑得起來 Windows，不要換成 ubuntu。
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 安裝前端相依套件
+        run: npm ci
+
+      - name: 跑完整測試套件
+        run: dotnet test PasswordVault.slnx -c Release
+
+  verify-published-module:
+    name: 驗證已發布的部件 zip
+    # 這個工作驗的是 build-and-test 驗不到的那一段：FileLocker 使用者按下「安裝密碼庫」時，
+    # 實際上是去 GitHub 抓 releases/latest 裡符合命名規則的 zip。本機測試永遠只驗得到「用本機
+    # 建置輸出組出來的部件」，驗不到「真的發布出去的那包內容對不對」——兩者對不起來時（漏檔、
+    # 檔名填錯區間、忘了重新打包）沒有任何本機檢查會發現。
+    #
+    # 這裡刻意打真實的 GitHub API 而不是用 mock：要固定住的就是「線上那包真的能用」這件事本身。
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 安裝前端相依套件
+        run: npm ci
+
+      - name: 下載 releases/latest 裡的部件 zip
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 命名規則與挑選邏輯跟 FileLocker repo 的 PasswordLockerAssetSelector.cs 對齊：三組
+          # 都是三段式版本號，同一個 Release 有多筆符合時挑 PasswordVault 版本最新的那筆。
+          $pattern = '^PasswordVault_v(?<pv>\d+\.\d+\.\d+)_for-FileLocker-(?<min>\d+\.\d+\.\d+)-to-(?<max>\d+\.\d+\.\d+)\.zip$'
+          $release = gh api repos/${{ github.repository }}/releases/latest | ConvertFrom-Json
+          $asset = $release.assets |
+            Where-Object { $_.name -match $pattern } |
+            Sort-Object { [version]([regex]::Match($_.name, $pattern).Groups['pv'].Value) } |
+            Select-Object -Last 1
+
+          if (-not $asset) {
+            # 不是安靜跳過：latest 沒有符合命名規則的資產，代表使用者按「安裝密碼庫」會拿不到
+            # 東西，這正是這個工作要抓的失敗。
+            throw "releases/latest（$($release.tag_name)）裡沒有任何符合命名規則的部件 zip。"
+          }
+
+          Write-Host "挑到的資產：$($asset.name)"
+          gh release download $release.tag_name --repo ${{ github.repository }} --pattern $asset.name --dir "$env:RUNNER_TEMP/module-zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP/module-zip/$($asset.name)" -DestinationPath "$env:RUNNER_TEMP/module" -Force
+          "PASSWORDVAULT_PUBLISHED_MODULE_DIR=$env:RUNNER_TEMP/module" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: 用下載回來的那包跑打包測試
+        # 設了 PASSWORDVAULT_PUBLISHED_MODULE_DIR 之後，同一組測試改用下載回來的資料夾當來源
+        # （見 PasswordLockerModulePackagingTests 的 GetModuleSourceDirectory）。
+        run: dotnet test tests/PasswordVault.App.Tests/PasswordVault.App.Tests.csproj -c Release --filter "FullyQualifiedName~PasswordLockerModulePackagingTests"
